@@ -27,31 +27,38 @@ import kotlin.math.sqrt
 public val DefaultMaxPull: Dp = 22.dp
 
 /**
- * How elastic glass feels, in Apple's spring terms so values can be compared with SwiftUI.
+ * How elastic glass feels, in Apple's spring terms (bounce = 1 - damping ratio, response in
+ * seconds) so values can be compared with UIKit and SwiftUI.
  *
- * Apple does not publish the Liquid Glass constants; the default starts from SwiftUI's
- * `.snappy` spring (bounce 0.15) with a slightly quicker response, to be tuned on device.
+ * Defaults are the Liquid Lens springs found in iOS 26.5 UIKitCore (`_UILiquidLensViewVariantSpec`
+ * base values, per Innei's UIKitCore reverse-engineering report): lift damping 0.625 / 0.27 s,
+ * unlift damping 0.7 / 0.5 s.
  *
- * @property bounce 0 = no overshoot, 0.3 = SwiftUI `.bouncy`, higher wobbles more (max 0.9).
- * @property response seconds the spring takes to settle, roughly (SwiftUI's `duration`).
+ * @property bounce overshoot when released (0 = none).
+ * @property response how long the release takes to settle, roughly.
+ * @property pressBounce overshoot of the press swell.
+ * @property pressResponse how quickly the press swell happens.
  * @property maxPull how far a piece can stretch toward the finger.
  * @property stretch how much a piece lengthens per unit of pull (0 = it only moves).
  * @property pressScale swell while pressed (1 = none).
  */
 @Immutable
 public data class GlassPullSpec(
-    val bounce: Float = 0.15f,
-    val response: Float = 0.40f,
+    val bounce: Float = 0.30f,
+    val response: Float = 0.50f,
+    val pressBounce: Float = 0.375f,
+    val pressResponse: Float = 0.27f,
     val maxPull: Dp = DefaultMaxPull,
     val stretch: Float = 0.8f,
     val pressScale: Float = 1.08f,
-) {
-    internal val dampingRatio: Float get() = (1f - bounce).coerceIn(0.1f, 1f)
-    internal val stiffness: Float get() {
-        val w = (2.0 * Math.PI / response.coerceIn(0.05f, 3f)).toFloat()
-        return w * w
-    }
+)
+
+internal fun springStiffness(response: Float): Float {
+    val w = (2.0 * Math.PI / response.coerceIn(0.05f, 3f)).toFloat()
+    return w * w
 }
+
+internal fun dampingOf(bounce: Float): Float = (1f - bounce).coerceIn(0.1f, 1f)
 
 /** The pull feel elastic glass pieces use when none is passed explicitly. */
 public val LocalGlassPullSpec: ProvidableCompositionLocal<GlassPullSpec> = compositionLocalOf { GlassPullSpec() }
@@ -86,16 +93,21 @@ public class GlassPullState internal constructor(internal val scope: CoroutineSc
     }
 
     internal fun release() {
-        scope.launch { press.animateTo(1f, pressSpring()) }
+        // Unlift: the swell goes back with the release spring, like UIKit's unlift.
         scope.launch {
-            pull.animateTo(Offset.Zero, spring(dampingRatio = spec.dampingRatio, stiffness = spec.stiffness))
+            press.animateTo(1f, spring(dampingRatio = dampingOf(spec.bounce), stiffness = springStiffness(spec.response)))
+        }
+        scope.launch {
+            pull.animateTo(
+                Offset.Zero,
+                spring(dampingRatio = dampingOf(spec.bounce), stiffness = springStiffness(spec.response)),
+            )
         }
     }
 
-    // The swell settles a little quicker and calmer than the pull.
     private fun pressSpring() = spring<Float>(
-        dampingRatio = (spec.dampingRatio + 0.1f).coerceAtMost(1f),
-        stiffness = spec.stiffness * 1.5f,
+        dampingRatio = dampingOf(spec.pressBounce),
+        stiffness = springStiffness(spec.pressResponse),
     )
 }
 

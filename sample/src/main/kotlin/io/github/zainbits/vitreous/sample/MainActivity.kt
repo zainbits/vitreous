@@ -23,7 +23,9 @@ class MainActivity : ComponentActivity() {
         stats = FrameStats(window).also { it.start() }
         val i = intent
         io.github.zainbits.vitreous.VitreousDebug.blurDownsample = i.getIntExtra("ds", 0)
-        io.github.zainbits.vitreous.VitreousDebug.blurMethod = i.getIntExtra("blur", 1)
+        io.github.zainbits.vitreous.VitreousDebug.blurMethod = i.getIntExtra("blur", 0)
+        io.github.zainbits.vitreous.VitreousDebug.blurTaps = i.getIntExtra("taps", 32)
+        io.github.zainbits.vitreous.VitreousDebug.blurSpanPx = i.getFloatExtra("span", 4f)
         val config = SampleConfig(
             mode = SampleMode.parse(i.getStringExtra("mode")),
             clarity = i.getFloatExtra("clarity", 0.35f),

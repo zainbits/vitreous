@@ -148,8 +148,8 @@ internal class GlassRenderer {
         val ds = when {
             blurPx < 0.5f -> 1
             VitreousDebug.blurDownsample > 0 -> VitreousDebug.blurDownsample
-            // Keep the taps about 3 px apart in the small copy: smooth, never ghosted.
-            taps -> kotlin.math.ceil(blurPx / 3f).toInt().coerceIn(1, 8)
+            // The blur spans about blurSpanPx pixels of the small copy.
+            taps -> kotlin.math.ceil(blurPx / VitreousDebug.blurSpanPx).toInt().coerceIn(1, 8)
             else -> 1
         }
         val mergePx = merge.toPx()

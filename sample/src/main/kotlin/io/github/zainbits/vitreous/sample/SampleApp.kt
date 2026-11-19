@@ -327,7 +327,7 @@ private fun TunePanel(
                 }
             }
             Text(
-                "Pull feel: bounce %.2f · response %.2f s · max pull %.0f dp · stretch %.2f"
+                "Release: bounce %.2f · response %.2f s · max pull %.0f dp · stretch %.2f"
                     .format(pullSpec.bounce, pullSpec.response, pullSpec.maxPull.value, pullSpec.stretch),
                 style = MaterialTheme.typography.labelMedium,
             )
@@ -338,8 +338,8 @@ private fun TunePanel(
             TextButton(onClick = { onPullSpec(GlassPullSpec()) }) { Text("Reset pull feel") }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Blur", style = MaterialTheme.typography.labelLarge)
-                FilterChip(selected = blurMethod == 1, onClick = { onBlurMethod(1) }, label = { Text("Vitreous (fast)", fontSize = 11.sp) })
-                FilterChip(selected = blurMethod == 0, onClick = { onBlurMethod(0) }, label = { Text("Android", fontSize = 11.sp) })
+                FilterChip(selected = blurMethod == 0, onClick = { onBlurMethod(0) }, label = { Text("Android (default)", fontSize = 11.sp) })
+                FilterChip(selected = blurMethod == 1, onClick = { onBlurMethod(1) }, label = { Text("Shader taps", fontSize = 11.sp) })
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Extra buttons: $extra", Modifier.width(120.dp), style = MaterialTheme.typography.labelLarge)

@@ -34,6 +34,7 @@ uniform float uRimWidth;
 uniform float2 uLight;
 uniform float uDispersion;
 uniform float uBlur;
+uniform float uTaps;
 
 // Distance to one rounded rectangle (negative inside) and its outward edge normal. The normal
 // comes from a rounder copy of the shape (radius at least the band) so its direction is smooth
@@ -63,23 +64,28 @@ float2 clampIn(float2 s) {
     return clamp(s, float2(0.5), uSize - 0.5);
 }
 
-// Single-pass blur: 12 taps on a Vogel (golden-angle) disk of radius uBlur. Used when the
-// content is a small, already smooth copy scaled up, so few taps look even.
+// Single-pass blur: up to 32 taps on a Vogel (golden-angle) disk of radius uBlur with Gaussian
+// weights, read from a small, already smooth copy scaled up (bilinear), so it stays even.
 half4 blurAt(float2 s) {
     if (uBlur <= 0.0) {
         return content.eval(s);
     }
     half4 acc = half4(0.0);
+    float wsum = 0.0;
     float2 dir = float2(1.0, 0.0);
     // rotation by the golden angle (2.39996 rad)
     float ca = -0.7373688;
     float sa = 0.6754903;
-    for (int i = 0; i < 12; i++) {
-        float r = sqrt((float(i) + 0.5) / 12.0) * uBlur;
-        acc += content.eval(clampIn(s + dir * r));
-        dir = float2(dir.x * ca - dir.y * sa, dir.x * sa + dir.y * ca);
+    for (int i = 0; i < 32; i++) {
+        if (float(i) < uTaps) {
+            float f = sqrt((float(i) + 0.5) / uTaps);
+            float w = exp(-2.5 * f * f);
+            acc += content.eval(clampIn(s + dir * (f * uBlur))) * half(w);
+            wsum += w;
+            dir = float2(dir.x * ca - dir.y * sa, dir.x * sa + dir.y * ca);
+        }
     }
-    return acc / 12.0;
+    return acc / half(wsum);
 }
 
 half4 main(float2 xy) {
@@ -178,6 +184,7 @@ internal object GlassShader {
         s.setFloatUniform("uLight", cos(a).toFloat(), sin(a).toFloat())
         s.setFloatUniform("uDispersion", style.dispersion)
         s.setFloatUniform("uBlur", shaderBlurPx)
+        s.setFloatUniform("uTaps", VitreousDebug.blurTaps.coerceIn(4, 32).toFloat())
         VitreousDebug.effectBuilds++
         return RenderEffect.createRuntimeShaderEffect(s, "content")
     }

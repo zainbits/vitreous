@@ -21,10 +21,20 @@ public object VitreousDebug {
     public var blurDownsample: Int = 0
 
     /**
-     * Experiment knob: 1 = 12-tap blur inside the glass shader on a small copy (default; fewest
-     * render passes), 0 = the platform blur effect (several passes per glass pass).
+     * Experiment knob: 0 = the platform blur effect (default: smoothest, and the lowest battery
+     * drain measured on a MediaTek phone), 1 = tap blur inside the glass shader on a small copy
+     * (less render-thread CPU but more GPU work, which cost more battery there).
      */
-    public var blurMethod: Int = 1
+    public var blurMethod: Int = 0
+
+    /** Taps of the shader blur (4..32). More is smoother and costs GPU time only. */
+    public var blurTaps: Int = 32
+
+    /**
+     * Blur radius, in pixels of the small copy, that sets the automatic copy size: smaller
+     * means a larger, sharper-sourced copy (better quality, more pixels).
+     */
+    public var blurSpanPx: Float = 4f
 
     public fun reset() {
         sourceRecords = 0
