@@ -378,8 +378,8 @@ private fun TunePanel(
             }
             val st = look.applyTo(baseStyle)
             Text(
-                "Look: edge %.2f × %.1f dp · reflect %.2f · bend %.0f dp over %.0f dp · rim %.2f × %.1f dp"
-                    .format(st.edgeAlpha, st.edgeWidth.value, st.reflection, st.refractionDepth.value, st.refractionBand.value, st.rim, st.rimWidth.value),
+                "Look: edge %.2f × %.1f dp · reflect %.2f · bend %.0f dp over %.0f dp · rim %.2f × %.1f dp · even %.2f"
+                    .format(st.edgeAlpha, st.edgeWidth.value, st.reflection, st.refractionDepth.value, st.refractionBand.value, st.rim, st.rimWidth.value, st.evenLight),
                 style = MaterialTheme.typography.labelMedium,
             )
             TuneSlider("Edge", st.edgeAlpha, 0f..0.6f) { onLook(look.copy(edgeAlpha = it)) }
@@ -389,6 +389,7 @@ private fun TunePanel(
             TuneSlider("Bend band", st.refractionBand.value, 4f..48f) { onLook(look.copy(band = it)) }
             TuneSlider("Rim", st.rim, 0f..1.5f) { onLook(look.copy(rim = it)) }
             TuneSlider("Rim w", st.rimWidth.value, 0.5f..4f) { onLook(look.copy(rimWidth = it)) }
+            TuneSlider("Even light", st.evenLight, 0f..1f) { onLook(look.copy(evenLight = it)) }
             TextButton(onClick = { onLook(LookTune()) }) { Text("Reset look") }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SampleMode.entries.forEach {
@@ -515,6 +516,7 @@ private data class LookTune(
     val rim: Float? = null,
     val rimWidth: Float? = null,
     val reflection: Float? = null,
+    val evenLight: Float? = null,
 ) {
     fun applyTo(s: GlassStyle): GlassStyle = s.copy(
         edgeAlpha = edgeAlpha ?: s.edgeAlpha,
@@ -524,6 +526,7 @@ private data class LookTune(
         rim = rim ?: s.rim,
         rimWidth = rimWidth?.dp ?: s.rimWidth,
         reflection = reflection ?: s.reflection,
+        evenLight = evenLight ?: s.evenLight,
     )
 }
 
