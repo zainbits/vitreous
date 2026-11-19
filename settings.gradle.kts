@@ -25,8 +25,8 @@ include(":vitreous")
 include(":sample")
 
 // The shared engine (shapes, springs, glass renderer), built from its checkout next to this one.
-includeBuild("../liquid-core") {
+includeBuild("../cohesion") {
     dependencySubstitution {
-        substitute(module("io.github.zainbits:liquid-core")).using(project(":core"))
+        substitute(module("io.github.zainbits:cohesion")).using(project(":cohesion"))
     }
 }

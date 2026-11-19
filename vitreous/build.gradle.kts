@@ -29,7 +29,7 @@ kotlin {
 }
 
 dependencies {
-    api("io.github.zainbits:liquid-core:0.1.0-SNAPSHOT")
+    api("io.github.zainbits:cohesion:0.1.0-SNAPSHOT")
     implementation(platform(libs.androidx.compose.bom))
     api(libs.androidx.compose.ui)
     api(libs.androidx.compose.foundation)

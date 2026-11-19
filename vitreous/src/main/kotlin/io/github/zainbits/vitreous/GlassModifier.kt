@@ -1,12 +1,12 @@
 package io.github.zainbits.vitreous
 
 import androidx.compose.runtime.Immutable
-import io.github.zainbits.liquid.GlassBackdrop
-import io.github.zainbits.liquid.GlassMode
-import io.github.zainbits.liquid.GlassPass
-import io.github.zainbits.liquid.GlassStyle
-import io.github.zainbits.liquid.RoundRectScene
-import io.github.zainbits.liquid.positionOf
+import io.github.zainbits.cohesion.GlassBackdrop
+import io.github.zainbits.cohesion.GlassMode
+import io.github.zainbits.cohesion.GlassPass
+import io.github.zainbits.cohesion.GlassStyle
+import io.github.zainbits.cohesion.RoundRectScene
+import io.github.zainbits.cohesion.positionOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope

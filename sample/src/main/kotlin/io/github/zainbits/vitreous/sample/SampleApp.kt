@@ -63,19 +63,19 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.zainbits.liquid.GlassBackdrop
+import io.github.zainbits.cohesion.GlassBackdrop
 import io.github.zainbits.vitreous.GlassGroup
 import io.github.zainbits.vitreous.GlassIconButton
-import io.github.zainbits.liquid.GlassMode
-import io.github.zainbits.liquid.GlassPullSpec
-import io.github.zainbits.liquid.LocalGlassPullSpec
+import io.github.zainbits.cohesion.GlassMode
+import io.github.zainbits.cohesion.GlassPullSpec
+import io.github.zainbits.cohesion.LocalGlassPullSpec
 import io.github.zainbits.vitreous.GlassShape
 import io.github.zainbits.vitreous.GlassSurface
 import io.github.zainbits.vitreous.GlassTopBar
-import io.github.zainbits.liquid.ProvideGlass
-import io.github.zainbits.liquid.glassSource
-import io.github.zainbits.liquid.rememberAdaptiveGlassMode
-import io.github.zainbits.liquid.rememberGlassBackdrop
+import io.github.zainbits.cohesion.ProvideGlass
+import io.github.zainbits.cohesion.glassSource
+import io.github.zainbits.cohesion.rememberAdaptiveGlassMode
+import io.github.zainbits.cohesion.rememberGlassBackdrop
 import kotlin.math.abs
 
 enum class SampleMode(val label: String) {
@@ -111,7 +111,7 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
         var clarity by remember { mutableFloatStateOf(config.clarity) }
         var extra by remember { mutableIntStateOf(config.extraGlass) }
         var showPanel by remember { mutableStateOf(false) }
-        var blurMethod by remember { mutableIntStateOf(io.github.zainbits.liquid.LiquidDebug.blurMethod) }
+        var blurMethod by remember { mutableIntStateOf(io.github.zainbits.cohesion.CohesionDebug.blurMethod) }
         var showHud by remember { mutableStateOf(true) }
         var pullSpec by remember { mutableStateOf(GlassPullSpec()) }
         var hud by remember { mutableStateOf("") }
@@ -251,7 +251,7 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
                             onPullSpec = { pullSpec = it },
                             blurMethod = blurMethod,
                             onBlurMethod = {
-                                io.github.zainbits.liquid.LiquidDebug.blurMethod = it
+                                io.github.zainbits.cohesion.CohesionDebug.blurMethod = it
                                 blurMethod = it
                             },
                         )

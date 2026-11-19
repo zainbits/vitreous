@@ -22,10 +22,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         stats = FrameStats(window).also { it.start() }
         val i = intent
-        io.github.zainbits.liquid.LiquidDebug.blurDownsample = i.getIntExtra("ds", 0)
-        io.github.zainbits.liquid.LiquidDebug.blurMethod = i.getIntExtra("blur", 0)
-        io.github.zainbits.liquid.LiquidDebug.blurTaps = i.getIntExtra("taps", 32)
-        io.github.zainbits.liquid.LiquidDebug.blurSpanPx = i.getFloatExtra("span", 4f)
+        io.github.zainbits.cohesion.CohesionDebug.blurDownsample = i.getIntExtra("ds", 0)
+        io.github.zainbits.cohesion.CohesionDebug.blurMethod = i.getIntExtra("blur", 0)
+        io.github.zainbits.cohesion.CohesionDebug.blurTaps = i.getIntExtra("taps", 32)
+        io.github.zainbits.cohesion.CohesionDebug.blurSpanPx = i.getFloatExtra("span", 4f)
         val config = SampleConfig(
             mode = SampleMode.parse(i.getStringExtra("mode")),
             clarity = i.getFloatExtra("clarity", 0.35f),
