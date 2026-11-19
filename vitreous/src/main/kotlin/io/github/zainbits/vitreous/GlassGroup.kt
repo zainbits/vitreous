@@ -8,15 +8,15 @@ import io.github.zainbits.cohesion.GlassPass
 import io.github.zainbits.cohesion.GlassPullState
 import io.github.zainbits.cohesion.GlassStyle
 import io.github.zainbits.cohesion.GlassTone
+import io.github.zainbits.cohesion.GlassToneProbe
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
+import androidx.compose.ui.node.currentValueOf
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.node.requireDensity
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.conflate
-import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.launch
 import io.github.zainbits.cohesion.DefaultMaxPull
 import io.github.zainbits.cohesion.LocalGlassMode
 import io.github.zainbits.cohesion.LocalGlassStyle
@@ -152,16 +152,14 @@ private class GlassGroupElement(
     }
 }
 
-/** Shortest time between two readings of the content's brightness (adaptive content colour). */
-private const val TONE_INTERVAL_MS = 250L
-
 internal class GlassGroupNode(
     var backdrop: GlassBackdrop,
     var group: GlassGroupState,
     var style: GlassStyle,
     var mode: GlassMode,
     var merge: Dp,
-) : Modifier.Node(), DrawModifierNode, GlobalPositionAwareModifierNode, LayoutAwareModifierNode {
+) : Modifier.Node(), DrawModifierNode, GlobalPositionAwareModifierNode, LayoutAwareModifierNode,
+    CompositionLocalConsumerModifierNode {
 
     override val shouldAutoInvalidate: Boolean get() = false
 
@@ -173,12 +171,11 @@ internal class GlassGroupNode(
     // Adaptive content colour: each toned piece's box (group coordinates), read back only on change.
     private val toneRegions = FloatArray(RoundRectScene.MAX * 4)
     private val toneDrawn = FloatArray(RoundRectScene.MAX * 4)
-    private val toneLum = FloatArray(RoundRectScene.MAX)
     private val tones = arrayOfNulls<GlassContentTone>(RoundRectScene.MAX)
     private var toneCount = 0
     private var toneBounds = Rect.Zero
     private val toneMoved = MutableStateFlow(0L)
-    private var sampler: Job? = null
+    private var probe: GlassToneProbe? = null
 
     fun update(backdrop: GlassBackdrop, group: GlassGroupState, style: GlassStyle, mode: GlassMode, merge: Dp) {
         val changed = this.backdrop !== backdrop || this.group !== group ||
@@ -200,28 +197,41 @@ internal class GlassGroupNode(
     }
 
     private fun startSampler() {
-        sampler?.cancel()
-        if (!GlassTone.enabled) return
-        val source = backdrop
-        sampler = coroutineScope.launch {
-            // At most one reading per TONE_INTERVAL_MS, and one more after the last change.
-            merge(source.changes, toneMoved).conflate().collect {
-                sampleTones()
-                delay(TONE_INTERVAL_MS)
-            }
-        }
+        val p = probe ?: GlassToneProbe(coroutineScope) { sampleTones() }.also { probe = it }
+        p.watch(backdrop, toneMoved)
     }
 
+    /** Reads the strip beside the group (below it in the upper half of the screen, above it in the lower). */
     private fun sampleTones() {
         val n = toneCount
-        if (!isAttached || n == 0 || toneBounds.width < 1f) return
+        if (!isAttached || n == 0) return
         if (mode == GlassMode.Solid) {
             val l = style.solidColor.luminance()
             for (k in 0 until n) tones[k]?.let { it.isDark = GlassTone.wantsDarkContent(l, it.isDark) }
             return
         }
-        if (!GlassTone.luminance(backdrop, requireDensity(), toneBounds, style, toneRegions, n, toneLum)) return
-        for (k in 0 until n) tones[k]?.let { it.isDark = GlassTone.wantsDarkContent(toneLum[k], it.isDark) }
+        val me = requireLayoutCoordinates()
+        if (!me.isAttached) return
+        val view = currentValueOf(LocalView)
+        val at = me.positionInWindow()
+        val w = me.size.width
+        val h = me.size.height
+        if (w < 2) return
+        val density = requireDensity()
+        val gap = with(density) { 2.dp.roundToPx() }
+        val strip = with(density) { 6.dp.roundToPx() }
+        val left = at.x.toInt()
+        val below = at.y + h / 2f < view.rootView.height / 2f
+        val top = if (below) at.y.toInt() + h + gap else at.y.toInt() - gap - strip
+        val style = style
+        probe?.read(view, left, top, left + w, top + strip) { columns ->
+            if (!isAttached) return@read
+            for (k in 0 until minOf(n, toneCount)) {
+                val tone = tones[k] ?: continue
+                val content = GlassToneProbe.average(columns, toneRegions[k * 4] / w, toneRegions[k * 4 + 2] / w)
+                tone.isDark = GlassTone.wantsDarkContent(GlassTone.throughGlass(content, style), tone.isDark)
+            }
+        }
     }
 
     fun invalidateFromParts() {
@@ -236,8 +246,8 @@ internal class GlassGroupNode(
     }
 
     override fun onDetach() {
-        sampler?.cancel()
-        sampler = null
+        probe?.stop()
+        probe = null
         if (group.node === this) group.node = null
         pass.detach(requireGraphicsContext())
         offset = Offset.Unspecified
