@@ -17,4 +17,5 @@ sleep 4
 adb shell "cat /data/local/tmp/vit-gpucfg.txt | perfetto --txt -c - -o /data/misc/perfetto-traces/vg.pftrace" >/dev/null 2>&1
 adb pull /data/misc/perfetto-traces/vg.pftrace /tmp/vg.pftrace >/dev/null
 UID_=$(adb shell pm list packages -U --user 0 "$PKG" | grep -m1 -oE 'uid:[0-9]+' | cut -d: -f2)
-"$HOME/work/vitreous-trace/.venv/bin/python" "$HERE/gpuwork.py" /tmp/vg.pftrace "$UID_" "$MODE $*"
+# Needs a Python with the perfetto package (pip install perfetto); set VITREOUS_TRACE_PYTHON to use another one.
+"${VITREOUS_TRACE_PYTHON:-python3}" "$HERE/gpuwork.py" /tmp/vg.pftrace "$UID_" "$MODE $*"

@@ -1,6 +1,8 @@
 # Vitreous
 
-Liquid glass for Jetpack Compose, Android 16+ only, built to cost as little as possible.
+Liquid glass for Jetpack Compose on Android 13+ (API 33), built to cost as little as possible. Buttons, panels, a top bar and groups that merge like liquid, with an elastic pull like iOS.
+
+Built on [Cohesion](https://github.com/zainbits/cohesion), the shared glass engine. Neither is on Maven yet: clone both side by side (`vitreous/` and `cohesion/` in the same folder); this build includes `../cohesion`.
 
 ```kotlin
 val backdrop = rememberGlassBackdrop()
