@@ -1,6 +1,17 @@
 package io.github.zainbits.vitreous
 
 import androidx.compose.runtime.Composable
+import io.github.zainbits.liquid.ElasticDeform
+import io.github.zainbits.liquid.GlassBackdrop
+import io.github.zainbits.liquid.GlassMode
+import io.github.zainbits.liquid.GlassPass
+import io.github.zainbits.liquid.GlassPullState
+import io.github.zainbits.liquid.GlassStyle
+import io.github.zainbits.liquid.DefaultMaxPull
+import io.github.zainbits.liquid.LocalGlassMode
+import io.github.zainbits.liquid.LocalGlassStyle
+import io.github.zainbits.liquid.RoundRectScene
+import io.github.zainbits.liquid.positionOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.Stable
@@ -37,7 +48,7 @@ import androidx.compose.ui.unit.dp
 public class GlassGroupState internal constructor() {
     internal var backdrop: GlassBackdrop? = null
     internal var coordinates: LayoutCoordinates? = null
-    internal val parts = ArrayList<GlassPartNode>(MAX_SHAPES)
+    internal val parts = ArrayList<GlassPartNode>(RoundRectScene.MAX)
     internal var node: GlassGroupNode? = null
 
     internal fun invalidate() {
@@ -139,8 +150,9 @@ internal class GlassGroupNode(
 
     override val shouldAutoInvalidate: Boolean get() = false
 
-    private val renderer = GlassRenderer()
-    private val elastic = Elastic()
+    private val scene = RoundRectScene()
+    private val pass = GlassPass(scene)
+    private val elastic = ElasticDeform()
     private var offset = Offset.Unspecified
 
     fun update(backdrop: GlassBackdrop, group: GlassGroupState, style: GlassStyle, mode: GlassMode, merge: Dp) {
@@ -166,12 +178,12 @@ internal class GlassGroupNode(
     override fun onAttach() {
         group.node = this
         group.backdrop = backdrop
-        renderer.attach(requireGraphicsContext())
+        pass.attach(requireGraphicsContext())
     }
 
     override fun onDetach() {
         if (group.node === this) group.node = null
-        renderer.detach(requireGraphicsContext())
+        pass.detach(requireGraphicsContext())
         offset = Offset.Unspecified
     }
 
@@ -192,8 +204,8 @@ internal class GlassGroupNode(
         if (offset == Offset.Unspecified) {
             backdrop.positionOf(me)?.let { offset = it }
         }
-        val shapes = renderer.shapes
-        shapes.clear()
+        val shapes = scene
+        shapes.clear(style.refractionBand.toPx(), merge.toPx())
         var margin = 0.dp
         for (part in group.parts) {
             if (!part.isAttached) continue
@@ -210,7 +222,7 @@ internal class GlassGroupNode(
             val w = r.width * k
             val h = r.height * k
             val radius = part.shape.radiusPx(this, w, h)
-            val round = Elastic.isRound(w, h, radius)
+            val round = ElasticDeform.isRound(w, h, radius)
             pull.round = round
             elastic.compute(pull.offset, w, h, pull.spec.maxPull.toPx(), pull.spec.stretch, round)
             val x = r.left - (w - r.width) / 2f + elastic.shiftX
@@ -221,10 +233,9 @@ internal class GlassGroupNode(
             )
             if (pull.spec.maxPull > margin) margin = pull.spec.maxPull
         }
-        if (shapes.count > 0) {
-            with(renderer) {
-                drawGlass(requireGraphicsContext(), backdrop.layer, offset, style, mode, merge, margin * 1.25f)
-            }
+        shapes.commit()
+        if (shapes.size > 0) {
+            with(pass) { draw(requireGraphicsContext(), backdrop, offset, style, mode, margin * 1.25f) }
         }
         drawContent()
     }

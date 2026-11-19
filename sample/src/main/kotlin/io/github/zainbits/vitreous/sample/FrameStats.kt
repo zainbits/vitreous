@@ -4,7 +4,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.view.FrameMetrics
 import android.view.Window
-import io.github.zainbits.vitreous.VitreousDebug
+import io.github.zainbits.liquid.LiquidDebug
 
 /** Frame timing from the platform's own FrameMetrics (the same numbers `gfxinfo` reports). */
 class FrameStats(private val window: Window) {
@@ -91,12 +91,12 @@ class FrameStats(private val window: Window) {
             a.startNs = System.nanoTime()
         }
         // Debug counters are UI-thread fields; drain() is called on the UI thread.
-        val src = VitreousDebug.sourceRecords - a.src
-        val glass = VitreousDebug.glassRecords - a.glass
-        val fx = VitreousDebug.effectBuilds - a.fx
-        a.src = VitreousDebug.sourceRecords
-        a.glass = VitreousDebug.glassRecords
-        a.fx = VitreousDebug.effectBuilds
+        val src = LiquidDebug.sourceRecords - a.src
+        val glass = LiquidDebug.glassRecords - a.glass
+        val fx = LiquidDebug.effectBuilds - a.fx
+        a.src = LiquidDebug.sourceRecords
+        a.glass = LiquidDebug.glassRecords
+        a.fx = LiquidDebug.effectBuilds
         val secs = ((System.nanoTime() - start) / 1e9f).coerceAtLeast(0.001f)
         return Snapshot(
             seconds = secs,

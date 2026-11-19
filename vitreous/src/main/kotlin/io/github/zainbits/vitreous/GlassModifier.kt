@@ -1,6 +1,12 @@
 package io.github.zainbits.vitreous
 
 import androidx.compose.runtime.Immutable
+import io.github.zainbits.liquid.GlassBackdrop
+import io.github.zainbits.liquid.GlassMode
+import io.github.zainbits.liquid.GlassPass
+import io.github.zainbits.liquid.GlassStyle
+import io.github.zainbits.liquid.RoundRectScene
+import io.github.zainbits.liquid.positionOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
@@ -80,7 +86,8 @@ private class GlassNode(
 
     override val shouldAutoInvalidate: Boolean get() = false
 
-    private val renderer = GlassRenderer()
+    private val scene = RoundRectScene()
+    private val pass = GlassPass(scene)
     private var offset = Offset.Unspecified
 
     fun update(backdrop: GlassBackdrop, shape: GlassShape, style: GlassStyle, mode: GlassMode) {
@@ -94,11 +101,11 @@ private class GlassNode(
     }
 
     override fun onAttach() {
-        renderer.attach(requireGraphicsContext())
+        pass.attach(requireGraphicsContext())
     }
 
     override fun onDetach() {
-        renderer.detach(requireGraphicsContext())
+        pass.detach(requireGraphicsContext())
         offset = Offset.Unspecified
     }
 
@@ -114,16 +121,13 @@ private class GlassNode(
         if (offset == Offset.Unspecified) {
             backdrop.positionOf(requireLayoutCoordinates())?.let { offset = it }
         }
-        renderer.shapes.clear()
-        renderer.shapes.add(0f, 0f, size.width, size.height, shape.radiusPx(this, size.width, size.height))
-        with(renderer) { drawGlass(requireGraphicsContext(), backdrop.layer, offset, style, mode, 0.dp) }
+        scene.clear(style.refractionBand.toPx(), 0f)
+        scene.add(0f, 0f, size.width, size.height, shape.radiusPx(this, size.width, size.height))
+        scene.commit()
+        with(pass) { draw(requireGraphicsContext(), backdrop, offset, style, mode) }
         drawContent()
     }
 }
 
-/** Where [coordinates] sit inside the backdrop content, or null before both are placed. */
-internal fun GlassBackdrop.positionOf(coordinates: LayoutCoordinates): Offset? {
-    val src = this.coordinates ?: return null
-    if (!src.isAttached || !coordinates.isAttached) return null
-    return src.localPositionOf(coordinates, Offset.Zero)
-}
+internal fun GlassShape.radiusPx(scope: androidx.compose.ui.graphics.drawscope.DrawScope, w: Float, h: Float): Float =
+    if (cornerRadius == Dp.Infinity) minOf(w, h) / 2f else with(scope) { cornerRadius.toPx() }
