@@ -1,5 +1,6 @@
 package io.github.zainbits.vitreous
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.dp
  * Inside a [GlassGroup] it becomes one of the group's pieces instead of a pass of its own.
  *
  * @param elastic the finger can pull the panel like liquid (it springs back on release).
+ * @param onClick makes the panel a button; with [elastic], a press released over it is a click.
  */
 @Composable
 public fun GlassSurface(
@@ -39,6 +41,8 @@ public fun GlassSurface(
     mode: GlassMode = LocalGlassMode.current,
     contentAlignment: Alignment = Alignment.TopStart,
     elastic: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val outer = LocalGlassGroup.current
@@ -52,10 +56,30 @@ public fun GlassSurface(
         }
         else -> Modifier.glass(backdrop, shape, style, mode)
     }
+    val click = if (enabled) onClick else null
     Box(
         modifier = modifier
             .then(glass)
-            .then(if (pull != null) Modifier.glassPullGesture(pull) else Modifier),
+            .then(
+                when {
+                    pull != null -> Modifier.glassPullGesture(pull, onTap = click)
+                    click != null -> Modifier.clickable(onClick = click)
+                    else -> Modifier
+                },
+            )
+            .then(
+                if (click != null) {
+                    Modifier.semantics {
+                        role = Role.Button
+                        this.onClick(label = null) {
+                            click()
+                            true
+                        }
+                    }
+                } else {
+                    Modifier
+                },
+            ),
         contentAlignment = contentAlignment,
     ) {
         Box(
