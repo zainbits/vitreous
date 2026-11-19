@@ -86,16 +86,14 @@ public fun Modifier.glassGroup(
  * Marks this element as one glass piece of [group] (on this element or an ancestor).
  *
  * @param pull makes the piece elastic: it swells when pressed and stretches toward the finger
- *   (pair it with [glassPullGesture]). Animating it only changes the group's shader numbers;
- *   nothing is recomposed or re-recorded.
- * @param maxPull how far the piece can stretch.
+ *   (pair it with [glassPullGesture]); its [GlassPullState.spec] sets the feel. Animating it only
+ *   changes the group's shader numbers; nothing is recomposed or re-recorded.
  */
 public fun Modifier.glassPart(
     group: GlassGroupState,
     shape: GlassShape = GlassShape.rounded(24.dp),
     pull: GlassPullState? = null,
-    maxPull: Dp = DefaultMaxPull,
-): Modifier = this then GlassPartElement(group, shape, pull, maxPull)
+): Modifier = this then GlassPartElement(group, shape, pull, pull?.spec?.maxPull ?: DefaultMaxPull)
 
 private class GlassGroupElement(
     val backdrop: GlassBackdrop,
@@ -211,14 +209,14 @@ internal class GlassGroupNode(
             val k = pull.scale
             val w = r.width * k
             val h = r.height * k
-            elastic.compute(pull.offset, w, h, part.maxPull.toPx())
+            elastic.compute(pull.offset, w, h, pull.spec.maxPull.toPx(), pull.spec.stretch)
             val x = r.left - (w - r.width) / 2f + elastic.shiftX
             val y = r.top - (h - r.height) / 2f + elastic.shiftY
             shapes.add(
                 x, y, w, h, part.shape.radiusPx(this, w, h),
                 elastic.ux, elastic.uy, elastic.stretch, elastic.squash,
             )
-            if (part.maxPull > margin) margin = part.maxPull
+            if (pull.spec.maxPull > margin) margin = pull.spec.maxPull
         }
         if (shapes.count > 0) {
             with(renderer) {

@@ -111,7 +111,7 @@ public fun GlassIconButton(
 
 /** Moves and swells content with its elastic glass (a layer transform: no redraw). */
 private fun Modifier.pullContent(pull: GlassPullState): Modifier = graphicsLayer {
-    val shift = glassPullContentShift(pull.offset, DefaultMaxPull.toPx())
+    val shift = glassPullContentShift(pull.offset, pull.spec.maxPull.toPx())
     translationX = shift.x
     translationY = shift.y
     scaleX = pull.scale

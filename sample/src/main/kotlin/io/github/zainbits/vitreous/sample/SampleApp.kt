@@ -67,6 +67,8 @@ import io.github.zainbits.vitreous.GlassBackdrop
 import io.github.zainbits.vitreous.GlassGroup
 import io.github.zainbits.vitreous.GlassIconButton
 import io.github.zainbits.vitreous.GlassMode
+import io.github.zainbits.vitreous.GlassPullSpec
+import io.github.zainbits.vitreous.LocalGlassPullSpec
 import io.github.zainbits.vitreous.GlassShape
 import io.github.zainbits.vitreous.GlassSurface
 import io.github.zainbits.vitreous.GlassTopBar
@@ -111,6 +113,7 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
         var showPanel by remember { mutableStateOf(false) }
         var blurMethod by remember { mutableIntStateOf(io.github.zainbits.vitreous.VitreousDebug.blurMethod) }
         var showHud by remember { mutableStateOf(true) }
+        var pullSpec by remember { mutableStateOf(GlassPullSpec()) }
         var hud by remember { mutableStateOf("") }
         var benchRun by remember { mutableIntStateOf(if (config.benchSeconds > 0) 1 else 0) }
         var benchResult by remember { mutableStateOf("") }
@@ -166,7 +169,10 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
 
         androidx.compose.runtime.key(blurMethod) {
         ProvideGlass(clarity = clarity, dark = dark, mode = glassMode) {
-          CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+          CompositionLocalProvider(
+              LocalContentColor provides MaterialTheme.colorScheme.onSurface,
+              LocalGlassPullSpec provides pullSpec,
+          ) {
             Box(Modifier.fillMaxSize()) {
                 // The content glass shows through.
                 Box(
@@ -241,6 +247,8 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
                             showHud = showHud,
                             onHud = { showHud = it },
                             onBench = { benchRun++ },
+                            pullSpec = pullSpec,
+                            onPullSpec = { pullSpec = it },
                             blurMethod = blurMethod,
                             onBlurMethod = {
                                 io.github.zainbits.vitreous.VitreousDebug.blurMethod = it
@@ -304,6 +312,8 @@ private fun TunePanel(
     showHud: Boolean,
     onHud: (Boolean) -> Unit,
     onBench: () -> Unit,
+    pullSpec: GlassPullSpec,
+    onPullSpec: (GlassPullSpec) -> Unit,
     blurMethod: Int,
     onBlurMethod: (Int) -> Unit,
 ) {
@@ -316,6 +326,16 @@ private fun TunePanel(
                     FilterChip(selected = mode == it, onClick = { onMode(it) }, label = { Text(it.label, fontSize = 11.sp) })
                 }
             }
+            Text(
+                "Pull feel: bounce %.2f · response %.2f s · max pull %.0f dp · stretch %.2f"
+                    .format(pullSpec.bounce, pullSpec.response, pullSpec.maxPull.value, pullSpec.stretch),
+                style = MaterialTheme.typography.labelMedium,
+            )
+            TuneSlider("Bounce", pullSpec.bounce, 0f..0.6f) { onPullSpec(pullSpec.copy(bounce = it)) }
+            TuneSlider("Response", pullSpec.response, 0.15f..0.8f) { onPullSpec(pullSpec.copy(response = it)) }
+            TuneSlider("Max pull", pullSpec.maxPull.value, 8f..60f) { onPullSpec(pullSpec.copy(maxPull = it.dp)) }
+            TuneSlider("Stretch", pullSpec.stretch, 0f..2f) { onPullSpec(pullSpec.copy(stretch = it)) }
+            TextButton(onClick = { onPullSpec(GlassPullSpec()) }) { Text("Reset pull feel") }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Blur", style = MaterialTheme.typography.labelLarge)
                 FilterChip(selected = blurMethod == 1, onClick = { onBlurMethod(1) }, label = { Text("Vitreous (fast)", fontSize = 11.sp) })
@@ -335,6 +355,14 @@ private fun TunePanel(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TuneSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.width(76.dp), style = MaterialTheme.typography.labelMedium)
+        Slider(value = value, onValueChange = onChange, valueRange = range, modifier = Modifier.height(28.dp))
     }
 }
 
