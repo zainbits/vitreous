@@ -27,4 +27,4 @@ How it stays cheap:
 - One AGSL shader does shape, lens, colour boost, tint and lit rim after a single platform blur per group. (A shader tap blur is available as an experiment; it saved CPU but cost more battery on the GPU.)
 - `rememberAdaptiveGlassMode()` switches to plain tinted shapes in battery saver or when the phone is hot.
 
-Test bench: `sample/` (HUD, tune panel, bench). `tools/bench.sh` runs scripted benchmarks on a connected phone.
+Test bench: `sample/` (HUD, tune panel with look sliders for outline, bend and rim, a plain white or black backdrop with a big composer, bench). `tools/bench.sh` runs scripted benchmarks on a connected phone.

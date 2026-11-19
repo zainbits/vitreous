@@ -1,5 +1,9 @@
 package io.github.zainbits.vitreous.sample
 
+import androidx.compose.foundation.verticalScroll
+
+import androidx.compose.foundation.layout.heightIn
+
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -67,6 +71,8 @@ import io.github.zainbits.cohesion.GlassBackdrop
 import io.github.zainbits.vitreous.GlassGroup
 import io.github.zainbits.vitreous.GlassIconButton
 import io.github.zainbits.cohesion.GlassMode
+import io.github.zainbits.cohesion.GlassStyle
+import io.github.zainbits.cohesion.LocalGlassStyle
 import io.github.zainbits.cohesion.GlassPullSpec
 import io.github.zainbits.cohesion.LocalGlassPullSpec
 import io.github.zainbits.vitreous.GlassShape
@@ -114,6 +120,10 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
         var blurMethod by remember { mutableIntStateOf(io.github.zainbits.cohesion.CohesionDebug.blurMethod) }
         var showHud by remember { mutableStateOf(true) }
         var pullSpec by remember { mutableStateOf(GlassPullSpec()) }
+        var look by remember { mutableStateOf(LookTune()) }
+        // Plain white (light) or black (dark) behind a big composer, to judge the glass itself.
+        // Benchmarks scroll the chat, so they start on it.
+        var plain by remember { mutableStateOf(config.benchSeconds == 0) }
         var hud by remember { mutableStateOf("") }
         var benchRun by remember { mutableIntStateOf(if (config.benchSeconds > 0) 1 else 0) }
         var benchResult by remember { mutableStateOf("") }
@@ -169,9 +179,11 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
 
         androidx.compose.runtime.key(blurMethod) {
         ProvideGlass(clarity = clarity, dark = dark, mode = glassMode) {
+          val baseStyle = LocalGlassStyle.current
           CompositionLocalProvider(
               LocalContentColor provides MaterialTheme.colorScheme.onSurface,
               LocalGlassPullSpec provides pullSpec,
+              LocalGlassStyle provides look.applyTo(baseStyle),
           ) {
             Box(Modifier.fillMaxSize()) {
                 // The content glass shows through.
@@ -180,7 +192,15 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
                         .fillMaxSize()
                         .then(if (mode == SampleMode.None) Modifier else Modifier.glassSource(backdrop))
                 ) {
-                    ChatContent(listState, dark)
+                    if (plain) {
+                        Box(Modifier.fillMaxSize().background(if (dark) Color.Black else Color.White))
+                    } else {
+                        ChatContent(listState, dark)
+                    }
+                }
+
+                if (plain) {
+                    BigComposer(backdrop, Modifier.align(Alignment.Center).padding(horizontal = 16.dp))
                 }
 
                 // Glass on top.
@@ -249,6 +269,11 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
                             onBench = { benchRun++ },
                             pullSpec = pullSpec,
                             onPullSpec = { pullSpec = it },
+                            plain = plain,
+                            onPlain = { plain = it },
+                            look = look,
+                            baseStyle = baseStyle,
+                            onLook = { look = it },
                             blurMethod = blurMethod,
                             onBlurMethod = {
                                 io.github.zainbits.cohesion.CohesionDebug.blurMethod = it
@@ -314,13 +339,40 @@ private fun TunePanel(
     onBench: () -> Unit,
     pullSpec: GlassPullSpec,
     onPullSpec: (GlassPullSpec) -> Unit,
+    plain: Boolean,
+    onPlain: (Boolean) -> Unit,
+    look: LookTune,
+    baseStyle: GlassStyle,
+    onLook: (LookTune) -> Unit,
     blurMethod: Int,
     onBlurMethod: (Int) -> Unit,
 ) {
     GlassSurface(backdrop = backdrop, modifier = Modifier.fillMaxWidth(), shape = GlassShape.rounded(28.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Clear  ←  Liquid Glass  →  Tinted", style = MaterialTheme.typography.labelLarge)
-            Slider(value = clarity, onValueChange = onClarity)
+        // Scrolls: the panel is taller than the space above the composer on most phones.
+        Column(
+            Modifier.heightIn(max = 440.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("Clear  ←  Liquid Glass  →  Tinted   ${Math.round(clarity * 100)}", style = MaterialTheme.typography.labelLarge)
+            Slider(value = clarity, onValueChange = { onClarity(Math.round(it * 100f) / 100f) })
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Behind", style = MaterialTheme.typography.labelLarge)
+                FilterChip(selected = plain, onClick = { onPlain(true) }, label = { Text("Plain + big composer", fontSize = 11.sp) })
+                FilterChip(selected = !plain, onClick = { onPlain(false) }, label = { Text("Chat", fontSize = 11.sp) })
+            }
+            val st = look.applyTo(baseStyle)
+            Text(
+                "Look: outline %.2f × %.1f dp · bend %.0f dp over %.0f dp · rim %.2f × %.1f dp"
+                    .format(st.edgeAlpha, st.edgeWidth.value, st.refractionDepth.value, st.refractionBand.value, st.rim, st.rimWidth.value),
+                style = MaterialTheme.typography.labelMedium,
+            )
+            TuneSlider("Outline", st.edgeAlpha, 0f..0.6f) { onLook(look.copy(edgeAlpha = it)) }
+            TuneSlider("Outline w", st.edgeWidth.value, 0.5f..3f) { onLook(look.copy(edgeWidth = it)) }
+            TuneSlider("Bend", st.refractionDepth.value, 0f..40f) { onLook(look.copy(depth = it)) }
+            TuneSlider("Bend band", st.refractionBand.value, 4f..48f) { onLook(look.copy(band = it)) }
+            TuneSlider("Rim", st.rim, 0f..1.5f) { onLook(look.copy(rim = it)) }
+            TuneSlider("Rim w", st.rimWidth.value, 0.5f..4f) { onLook(look.copy(rimWidth = it)) }
+            TextButton(onClick = { onLook(LookTune()) }) { Text("Reset look") }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SampleMode.entries.forEach {
                     FilterChip(selected = mode == it, onClick = { onMode(it) }, label = { Text(it.label, fontSize = 11.sp) })
@@ -434,5 +486,58 @@ private fun ChatItem(i: Int, dark: Boolean) {
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             fontSize = 15.sp,
         )
+    }
+}
+
+/** Slider overrides on top of the clarity look; null = keep what the clarity gives. */
+private data class LookTune(
+    val edgeAlpha: Float? = null,
+    val edgeWidth: Float? = null,
+    val depth: Float? = null,
+    val band: Float? = null,
+    val rim: Float? = null,
+    val rimWidth: Float? = null,
+) {
+    fun applyTo(s: GlassStyle): GlassStyle = s.copy(
+        edgeAlpha = edgeAlpha ?: s.edgeAlpha,
+        edgeWidth = edgeWidth?.dp ?: s.edgeWidth,
+        refractionDepth = depth?.dp ?: s.refractionDepth,
+        refractionBand = band?.dp ?: s.refractionBand,
+        rim = rim ?: s.rim,
+        rimWidth = rimWidth?.dp ?: s.rimWidth,
+    )
+}
+
+/** The composer, scaled up: a 72 dp field between two 72 dp buttons, with a tall card above it. */
+@Composable
+private fun BigComposer(backdrop: GlassBackdrop, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        GlassSurface(
+            backdrop = backdrop,
+            modifier = Modifier.fillMaxWidth().height(140.dp),
+            shape = GlassShape.rounded(32.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("Glass card", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        }
+        GlassGroup(backdrop) { groupModifier ->
+            Row(groupModifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                GlassIconButton(onClick = {}, backdrop = backdrop, contentDescription = "Attach", size = 72.dp) {
+                    Icon(Icons.Filled.Add, null, Modifier.size(30.dp))
+                }
+                GlassSurface(
+                    backdrop = backdrop,
+                    modifier = Modifier.weight(1f).height(72.dp),
+                    shape = GlassShape.Capsule,
+                    contentAlignment = Alignment.CenterStart,
+                    onClick = {},
+                ) {
+                    Text("Message", Modifier.padding(horizontal = 24.dp), fontSize = 20.sp, color = LocalContentColor.current.copy(alpha = 0.6f))
+                }
+                GlassIconButton(onClick = {}, backdrop = backdrop, contentDescription = "Send", size = 72.dp) {
+                    Icon(Icons.AutoMirrored.Filled.Send, null, Modifier.size(30.dp))
+                }
+            }
+        }
     }
 }
