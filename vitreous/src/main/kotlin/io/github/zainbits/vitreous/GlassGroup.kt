@@ -201,6 +201,7 @@ internal class GlassGroupNode(
 
     private fun startSampler() {
         sampler?.cancel()
+        if (!GlassTone.enabled) return
         val source = backdrop
         sampler = coroutineScope.launch {
             // At most one reading per TONE_INTERVAL_MS, and one more after the last change.
