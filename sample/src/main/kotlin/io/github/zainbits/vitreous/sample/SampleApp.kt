@@ -104,6 +104,10 @@ data class SampleConfig(
     val extraGlass: Int,
     val benchSeconds: Int,
     val speedPxPerSec: Int,
+    /** "light" or "dark" to override the phone's theme; null = follow it. */
+    val theme: String? = null,
+    /** Plain backdrop (true) or the chat (false); null = plain unless benchmarking. */
+    val plain: Boolean? = null,
 )
 
 private const val TAG_PERF = "VitreousPerf"
@@ -111,7 +115,9 @@ private const val TAG_BENCH = "VitreousBench"
 
 @Composable
 fun SampleApp(stats: FrameStats, config: SampleConfig) {
-    val dark = isSystemInDarkTheme()
+    val systemDark = isSystemInDarkTheme()
+    var themeOverride by remember { mutableStateOf(config.theme) }
+    val dark = when (themeOverride) { "light" -> false; "dark" -> true; else -> systemDark }
     MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
         var mode by remember { mutableStateOf(config.mode) }
         var clarity by remember { mutableFloatStateOf(config.clarity) }
@@ -123,7 +129,7 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
         var look by remember { mutableStateOf(LookTune()) }
         // Plain white (light) or black (dark) behind a big composer, to judge the glass itself.
         // Benchmarks scroll the chat, so they start on it.
-        var plain by remember { mutableStateOf(config.benchSeconds == 0) }
+        var plain by remember { mutableStateOf(config.plain ?: (config.benchSeconds == 0)) }
         var hud by remember { mutableStateOf("") }
         var benchRun by remember { mutableIntStateOf(if (config.benchSeconds > 0) 1 else 0) }
         var benchResult by remember { mutableStateOf("") }
@@ -271,6 +277,8 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
                             onPullSpec = { pullSpec = it },
                             plain = plain,
                             onPlain = { plain = it },
+                            theme = themeOverride,
+                            onTheme = { themeOverride = it },
                             look = look,
                             baseStyle = baseStyle,
                             onLook = { look = it },
@@ -341,6 +349,8 @@ private fun TunePanel(
     onPullSpec: (GlassPullSpec) -> Unit,
     plain: Boolean,
     onPlain: (Boolean) -> Unit,
+    theme: String?,
+    onTheme: (String?) -> Unit,
     look: LookTune,
     baseStyle: GlassStyle,
     onLook: (LookTune) -> Unit,
@@ -360,14 +370,21 @@ private fun TunePanel(
                 FilterChip(selected = plain, onClick = { onPlain(true) }, label = { Text("Plain + big composer", fontSize = 11.sp) })
                 FilterChip(selected = !plain, onClick = { onPlain(false) }, label = { Text("Chat", fontSize = 11.sp) })
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Theme", style = MaterialTheme.typography.labelLarge)
+                listOf(null to "Phone", "light" to "Light", "dark" to "Dark").forEach { (v, label) ->
+                    FilterChip(selected = theme == v, onClick = { onTheme(v) }, label = { Text(label, fontSize = 11.sp) })
+                }
+            }
             val st = look.applyTo(baseStyle)
             Text(
-                "Look: outline %.2f × %.1f dp · bend %.0f dp over %.0f dp · rim %.2f × %.1f dp"
-                    .format(st.edgeAlpha, st.edgeWidth.value, st.refractionDepth.value, st.refractionBand.value, st.rim, st.rimWidth.value),
+                "Look: edge %.2f × %.1f dp · reflect %.2f · bend %.0f dp over %.0f dp · rim %.2f × %.1f dp"
+                    .format(st.edgeAlpha, st.edgeWidth.value, st.reflection, st.refractionDepth.value, st.refractionBand.value, st.rim, st.rimWidth.value),
                 style = MaterialTheme.typography.labelMedium,
             )
-            TuneSlider("Outline", st.edgeAlpha, 0f..0.6f) { onLook(look.copy(edgeAlpha = it)) }
-            TuneSlider("Outline w", st.edgeWidth.value, 0.5f..3f) { onLook(look.copy(edgeWidth = it)) }
+            TuneSlider("Edge", st.edgeAlpha, 0f..0.6f) { onLook(look.copy(edgeAlpha = it)) }
+            TuneSlider("Edge w", st.edgeWidth.value, 0.5f..4f) { onLook(look.copy(edgeWidth = it)) }
+            TuneSlider("Reflect", st.reflection, 0f..1f) { onLook(look.copy(reflection = it)) }
             TuneSlider("Bend", st.refractionDepth.value, 0f..40f) { onLook(look.copy(depth = it)) }
             TuneSlider("Bend band", st.refractionBand.value, 4f..48f) { onLook(look.copy(band = it)) }
             TuneSlider("Rim", st.rim, 0f..1.5f) { onLook(look.copy(rim = it)) }
@@ -497,6 +514,7 @@ private data class LookTune(
     val band: Float? = null,
     val rim: Float? = null,
     val rimWidth: Float? = null,
+    val reflection: Float? = null,
 ) {
     fun applyTo(s: GlassStyle): GlassStyle = s.copy(
         edgeAlpha = edgeAlpha ?: s.edgeAlpha,
@@ -505,6 +523,7 @@ private data class LookTune(
         refractionBand = band?.dp ?: s.refractionBand,
         rim = rim ?: s.rim,
         rimWidth = rimWidth?.dp ?: s.rimWidth,
+        reflection = reflection ?: s.reflection,
     )
 }
 

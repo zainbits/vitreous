@@ -9,7 +9,7 @@ import androidx.activity.enableEdgeToEdge
  * Showcase and test bench. Launch options (all optional) for scripted runs from adb:
  *
  *   adb shell am start -S -n io.github.zainbits.vitreous.sample.bench/io.github.zainbits.vitreous.sample.MainActivity \
- *     --es mode full|noblur|solid|none --ef clarity 0.35 --ei extra 4 --ei bench 12 --ei speed 2400
+ *     --es mode full|noblur|solid|none --ef clarity 0.35 --ei extra 4 --ei bench 12 --ei speed 2400 [--es theme light|dark] [--ez plain true|false]
  *
  * A bench run auto-scrolls the list at a fixed speed and logs one `VitreousBench` line.
  * Every second the HUD numbers are also logged under `VitreousPerf`.
@@ -32,6 +32,8 @@ class MainActivity : ComponentActivity() {
             extraGlass = i.getIntExtra("extra", 0),
             benchSeconds = i.getIntExtra("bench", 0),
             speedPxPerSec = i.getIntExtra("speed", 2400),
+            theme = i.getStringExtra("theme"),
+            plain = if (i.hasExtra("plain")) i.getBooleanExtra("plain", true) else null,
         )
         setContent { SampleApp(stats, config) }
     }
