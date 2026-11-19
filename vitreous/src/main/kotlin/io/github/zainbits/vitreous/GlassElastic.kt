@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -187,10 +188,22 @@ internal class Elastic {
     }
 }
 
-/** Where a pulled piece's content should move so it rides with the glass (layer translation). */
-public fun glassPullContentShift(pull: Offset, maxPx: Float): Offset {
-    val len = pull.getDistance()
-    if (len < 0.01f || maxPx <= 0f) return Offset.Zero
-    val e = maxPx * (1f - exp(-len / maxPx))
-    return Offset(pull.x / len * e * 0.5f, pull.y / len * e * 0.5f)
+/**
+ * Makes content ride with its elastic glass: the same shift, stretch, squash and press swell the
+ * glass gets, so text and icons never spill past the edge. Apply it to a box the same size as the
+ * glass piece. It is a layer transform, so following the finger costs no recomposition or redraw.
+ */
+public fun Modifier.glassPullContent(state: GlassPullState): Modifier {
+    val elastic = Elastic()
+    return this.graphicsLayer {
+        val k = state.scale
+        elastic.compute(state.offset, size.width * k, size.height * k, state.spec.maxPull.toPx(), state.spec.stretch)
+        // The glass stretches along the drag; a layer only scales along x and y, so project it.
+        val ux2 = elastic.ux * elastic.ux
+        val uy2 = elastic.uy * elastic.uy
+        scaleX = k * (elastic.stretch * ux2 + elastic.squash * uy2)
+        scaleY = k * (elastic.stretch * uy2 + elastic.squash * ux2)
+        translationX = elastic.shiftX
+        translationY = elastic.shiftY
+    }
 }

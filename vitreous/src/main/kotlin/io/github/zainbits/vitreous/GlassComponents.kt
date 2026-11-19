@@ -81,9 +81,11 @@ public fun GlassSurface(
                 },
             ),
         contentAlignment = contentAlignment,
+        // The inner box gets the panel's full size, so the content's transform matches the glass.
+        propagateMinConstraints = true,
     ) {
         Box(
-            modifier = if (pull != null) Modifier.pullContent(pull) else Modifier,
+            modifier = if (pull != null) Modifier.glassPullContent(pull) else Modifier,
             contentAlignment = contentAlignment,
         ) {
             // Glass nested inside this surface is drawn on top of it, not merged into the group.
@@ -129,17 +131,8 @@ public fun GlassIconButton(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.pullContent(pull), contentAlignment = Alignment.Center) { icon() }
+        Box(Modifier.matchParentSize().glassPullContent(pull), contentAlignment = Alignment.Center) { icon() }
     }
-}
-
-/** Moves and swells content with its elastic glass (a layer transform: no redraw). */
-private fun Modifier.pullContent(pull: GlassPullState): Modifier = graphicsLayer {
-    val shift = glassPullContentShift(pull.offset, pull.spec.maxPull.toPx())
-    translationX = shift.x
-    translationY = shift.y
-    scaleX = pull.scale
-    scaleY = pull.scale
 }
 
 /**
