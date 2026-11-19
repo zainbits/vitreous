@@ -1,6 +1,8 @@
 package io.github.zainbits.vitreous
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -35,6 +37,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -50,6 +54,11 @@ import androidx.compose.ui.unit.dp
  * @param onClick makes the panel a button; with [elastic], a press released over it is a click.
  * @param adaptiveContent the content's colour ([LocalContentColor]) follows what is behind the glass:
  *   dark over bright content, light over dark ([LocalGlassContentColors]), like iOS.
+ * @param onLongClick a press held still (a menu); with [elastic] the glass springs back and it is not a click.
+ * @param scrollAxis the panel sits in a list scrolling along this axis (a tab strip): with [elastic], a drag
+ *   along it scrolls the list instead of stretching the glass.
+ * @param clipContent clips the content to the shape (it follows the stretch), so a pressed or focused
+ *   control inside never shows a square corner. Off for content that reaches past the edge on purpose.
  */
 @Composable
 public fun GlassSurface(
@@ -63,6 +72,9 @@ public fun GlassSurface(
     onClick: (() -> Unit)? = null,
     enabled: Boolean = true,
     adaptiveContent: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
+    scrollAxis: Orientation? = null,
+    clipContent: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val outer = LocalGlassGroup.current
@@ -78,23 +90,32 @@ public fun GlassSurface(
         else -> Modifier.glass(backdrop, shape, style, mode)
     }
     val click = if (enabled) onClick else null
+    val longClick = if (enabled) onLongClick else null
     Box(
         modifier = modifier
             .then(glass)
             .then(
                 when {
-                    pull != null -> Modifier.glassPullGesture(pull, onTap = click)
-                    click != null -> Modifier.clickable(onClick = click)
+                    pull != null -> Modifier.glassPullGesture(pull, onTap = click, onLongPress = longClick, scrollAxis = scrollAxis)
+                    click != null || longClick != null -> Modifier.combinedClickable(onLongClick = longClick, onClick = click ?: {})
                     else -> Modifier
                 },
             )
             .then(
-                if (click != null) {
+                if (click != null || longClick != null) {
                     Modifier.semantics {
                         role = Role.Button
-                        this.onClick(label = null) {
-                            click()
-                            true
+                        if (click != null) {
+                            this.onClick(label = null) {
+                                click()
+                                true
+                            }
+                        }
+                        if (longClick != null) {
+                            this.onLongClick(label = null) {
+                                longClick()
+                                true
+                            }
                         }
                     }
                 } else {
@@ -106,7 +127,8 @@ public fun GlassSurface(
         propagateMinConstraints = true,
     ) {
         Box(
-            modifier = if (pull != null) Modifier.glassPullContent(pull) else Modifier,
+            modifier = (if (pull != null) Modifier.glassPullContent(pull) else Modifier)
+                .then(if (clipContent) Modifier.clip(shape.toShape()) else Modifier),
             contentAlignment = contentAlignment,
         ) {
             // Glass nested inside this surface is drawn on top of it, not merged into the group.

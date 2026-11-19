@@ -19,6 +19,9 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.node.requireLayoutCoordinates
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
 /** The outline of a glass surface: a rounded rectangle. */
@@ -30,6 +33,9 @@ public data class GlassShape(val cornerRadius: Dp) {
 
         public fun rounded(radius: Dp): GlassShape = GlassShape(radius)
     }
+
+    /** The same outline as a Compose [Shape], for clipping and indications. */
+    public fun toShape(): Shape = if (cornerRadius == Dp.Infinity) CircleShape else RoundedCornerShape(cornerRadius)
 }
 
 /**
