@@ -34,5 +34,7 @@ dependencies {
     api(libs.androidx.compose.ui)
     api(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.ui.graphics)
+    // LocalContentColor: adaptive glass sets the colour Material Text and Icon read.
+    api(libs.androidx.compose.material3)
 
 }

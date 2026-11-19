@@ -17,6 +17,8 @@ ProvideGlass(clarity = 0.35f, dark = isSystemInDarkTheme()) {   // 0 = ultra-cle
 }
 ```
 
+Text and icons on glass adapt: `GlassSurface` and `GlassIconButton` set `LocalContentColor` dark over bright content and light over dark (`LocalGlassContentColors`), fading between them like iOS. Turn it off with `adaptiveContent = false`.
+
 How it stays cheap:
 - The content is recorded once per frame; glass replays that recording, and when the content scrolls the render thread refreshes the glass with no UI-thread work.
 - Pieces in a `GlassGroup` (and everything in `GlassTopBar`) share one offscreen pass. The cost is per render pass, not per pixel.

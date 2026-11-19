@@ -12,7 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import io.github.zainbits.cohesion.GlassBackdrop
 import io.github.zainbits.cohesion.GlassMode
 import io.github.zainbits.cohesion.GlassStyle
@@ -39,6 +43,8 @@ import androidx.compose.ui.unit.dp
  *
  * @param elastic the finger can pull the panel like liquid (it springs back on release).
  * @param onClick makes the panel a button; with [elastic], a press released over it is a click.
+ * @param adaptiveContent the content's colour ([LocalContentColor]) follows what is behind the glass:
+ *   dark over bright content, light over dark ([LocalGlassContentColors]), like iOS.
  */
 @Composable
 public fun GlassSurface(
@@ -51,16 +57,18 @@ public fun GlassSurface(
     elastic: Boolean = false,
     onClick: (() -> Unit)? = null,
     enabled: Boolean = true,
+    adaptiveContent: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val outer = LocalGlassGroup.current
     val pull = if (elastic) rememberGlassPullState() else null
+    val tone = if (adaptiveContent) rememberGlassContentTone(style) else null
     val glass = when {
-        outer != null -> Modifier.glassPart(outer, shape, pull)
-        // An elastic piece needs room to stretch, which a one-piece group provides; same cost.
-        pull != null -> {
+        outer != null -> Modifier.glassPart(outer, shape, pull, tone)
+        // An elastic or adaptive piece uses a one-piece group (room to stretch, the tone sampler); same cost.
+        pull != null || tone != null -> {
             val own = rememberGlassGroup()
-            Modifier.glassGroup(backdrop, own, style, mode).glassPart(own, shape, pull)
+            Modifier.glassGroup(backdrop, own, style, mode).glassPart(own, shape, pull, tone)
         }
         else -> Modifier.glass(backdrop, shape, style, mode)
     }
@@ -97,7 +105,9 @@ public fun GlassSurface(
             contentAlignment = contentAlignment,
         ) {
             // Glass nested inside this surface is drawn on top of it, not merged into the group.
-            CompositionLocalProvider(LocalGlassGroup provides null) { content() }
+            CompositionLocalProvider(LocalGlassGroup provides null) {
+                if (tone != null) AdaptiveContent(tone) { content() } else content()
+            }
         }
     }
 }
@@ -105,7 +115,7 @@ public fun GlassSurface(
 /**
  * A round glass button (a back button, an action). It is elastic: a press swells it, a drag
  * stretches it toward the finger like liquid, and it wobbles back on release. A press released
- * over the button is a click.
+ * over the button is a click. With [adaptiveContent] the icon turns dark over bright content.
  */
 @Composable
 public fun GlassIconButton(
@@ -117,17 +127,19 @@ public fun GlassIconButton(
     enabled: Boolean = true,
     style: GlassStyle = LocalGlassStyle.current,
     mode: GlassMode = LocalGlassMode.current,
+    adaptiveContent: Boolean = true,
     icon: @Composable () -> Unit,
 ) {
     val pull = rememberGlassPullState()
     val outer = LocalGlassGroup.current
     val own = rememberGlassGroup()
     val group = outer ?: own
+    val tone = if (adaptiveContent) rememberGlassContentTone(style) else null
     Box(
         modifier = modifier
             .size(size)
             .then(if (outer == null) Modifier.glassGroup(backdrop, own, style, mode) else Modifier)
-            .glassPart(group, GlassShape.Capsule, pull)
+            .glassPart(group, GlassShape.Capsule, pull, tone)
             .glassPullGesture(pull, enabled, onTap = onClick)
             .semantics {
                 role = Role.Button
@@ -139,7 +151,9 @@ public fun GlassIconButton(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.matchParentSize().glassPullContent(pull), contentAlignment = Alignment.Center) { icon() }
+        Box(Modifier.matchParentSize().glassPullContent(pull), contentAlignment = Alignment.Center) {
+            if (tone != null) AdaptiveContent(tone, icon) else icon()
+        }
     }
 }
 
@@ -203,4 +217,16 @@ public fun GlassTopBar(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), content = actions)
     }
     }
+}
+
+/** Provides the tone's colour as [LocalContentColor], fading between light and dark like iOS. */
+@Composable
+private fun AdaptiveContent(tone: GlassContentTone, content: @Composable () -> Unit) {
+    val colors = LocalGlassContentColors.current
+    val color by animateColorAsState(
+        targetValue = if (tone.isDark) colors.dark else colors.light,
+        animationSpec = tween(durationMillis = 220),
+        label = "glassContent",
+    )
+    CompositionLocalProvider(LocalContentColor provides color, content = content)
 }
