@@ -205,8 +205,12 @@ fun SampleApp(stats: FrameStats, config: SampleConfig) {
                     }
                 }
 
-                if (plain) {
-                    BigComposer(backdrop, Modifier.align(Alignment.Center).padding(horizontal = 16.dp))
+                Column(
+                    Modifier.align(Alignment.Center).padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                ) {
+                    if (plain) BigComposer(backdrop)
+                    QuickLook(look, baseStyle, dark) { look = it }
                 }
 
                 // Glass on top.
@@ -378,10 +382,11 @@ private fun TunePanel(
             }
             val st = look.applyTo(baseStyle)
             Text(
-                "Look: edge %.2f × %.1f dp · reflect %.2f · bend %.0f dp over %.0f dp · rim %.2f × %.1f dp · even %.2f"
-                    .format(st.edgeAlpha, st.edgeWidth.value, st.reflection, st.refractionDepth.value, st.refractionBand.value, st.rim, st.rimWidth.value, st.evenLight),
+                "Look: tint %.2f · edge %.2f × %.1f dp · reflect %.2f · bend %.0f dp over %.0f dp · rim %.2f × %.1f dp · even %.2f, distance %.2f"
+                    .format(st.tintAlpha, st.edgeAlpha, st.edgeWidth.value, st.reflection, st.refractionDepth.value, st.refractionBand.value, st.rim, st.rimWidth.value, st.evenLight, st.lightDistance),
                 style = MaterialTheme.typography.labelMedium,
             )
+            TuneSlider("Tint", st.tintAlpha, 0f..1f) { onLook(look.copy(tint = it)) }
             TuneSlider("Edge", st.edgeAlpha, 0f..0.6f) { onLook(look.copy(edgeAlpha = it)) }
             TuneSlider("Edge w", st.edgeWidth.value, 0.5f..4f) { onLook(look.copy(edgeWidth = it)) }
             TuneSlider("Reflect", st.reflection, 0f..1f) { onLook(look.copy(reflection = it)) }
@@ -390,6 +395,7 @@ private fun TunePanel(
             TuneSlider("Rim", st.rim, 0f..1.5f) { onLook(look.copy(rim = it)) }
             TuneSlider("Rim w", st.rimWidth.value, 0.5f..4f) { onLook(look.copy(rimWidth = it)) }
             TuneSlider("Even light", st.evenLight, 0f..1f) { onLook(look.copy(evenLight = it)) }
+            TuneSlider("Light dist", st.lightDistance, 0f..1f) { onLook(look.copy(lightDistance = it)) }
             TextButton(onClick = { onLook(LookTune()) }) { Text("Reset look") }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SampleMode.entries.forEach {
@@ -517,6 +523,8 @@ private data class LookTune(
     val rimWidth: Float? = null,
     val reflection: Float? = null,
     val evenLight: Float? = null,
+    val tint: Float? = null,
+    val lightDistance: Float? = null,
 ) {
     fun applyTo(s: GlassStyle): GlassStyle = s.copy(
         edgeAlpha = edgeAlpha ?: s.edgeAlpha,
@@ -527,6 +535,8 @@ private data class LookTune(
         rimWidth = rimWidth?.dp ?: s.rimWidth,
         reflection = reflection ?: s.reflection,
         evenLight = evenLight ?: s.evenLight,
+        tintAlpha = tint ?: s.tintAlpha,
+        lightDistance = lightDistance ?: s.lightDistance,
     )
 }
 
@@ -560,6 +570,24 @@ private fun BigComposer(backdrop: GlassBackdrop, modifier: Modifier = Modifier) 
                     Icon(Icons.AutoMirrored.Filled.Send, null, Modifier.size(30.dp))
                 }
             }
+        }
+    }
+}
+
+/** The two settings tuned most, right on the page: the tint's strength and how far away the lights are. */
+@Composable
+private fun QuickLook(look: LookTune, base: GlassStyle, dark: Boolean, onLook: (LookTune) -> Unit) {
+    val st = look.applyTo(base)
+    androidx.compose.material3.Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Text("${if (dark) "Dark" else "White"} tint  ${Math.round(st.tintAlpha * 100)}", style = MaterialTheme.typography.labelLarge)
+            Slider(value = st.tintAlpha, onValueChange = { onLook(look.copy(tint = Math.round(it * 100f) / 100f)) })
+            Text("Light distance  ${Math.round(st.lightDistance * 100)}", style = MaterialTheme.typography.labelLarge)
+            Slider(value = st.lightDistance, onValueChange = { onLook(look.copy(lightDistance = Math.round(it * 100f) / 100f)) })
         }
     }
 }
