@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.IntSize
 internal class GlassShapes {
     val rects = FloatArray(MAX_SHAPES * 4)
     val radii = FloatArray(MAX_SHAPES)
+
+    /** Per shape: stretch direction (ux, uy), stretch along it, squash across it. */
+    val deform = FloatArray(MAX_SHAPES * 4).also { identity(it) }
     var count = 0
         private set
 
@@ -28,7 +31,10 @@ internal class GlassShapes {
         count = 0
     }
 
-    fun add(x: Float, y: Float, w: Float, h: Float, radius: Float) {
+    fun add(
+        x: Float, y: Float, w: Float, h: Float, radius: Float,
+        ux: Float = 1f, uy: Float = 0f, stretch: Float = 1f, squash: Float = 1f,
+    ) {
         if (count >= MAX_SHAPES || w <= 0f || h <= 0f) return
         val i = count * 4
         rects[i] = x
@@ -36,6 +42,10 @@ internal class GlassShapes {
         rects[i + 2] = w
         rects[i + 3] = h
         radii[count] = minOf(radius, minOf(w, h) / 2f)
+        deform[i] = ux
+        deform[i + 1] = uy
+        deform[i + 2] = stretch
+        deform[i + 3] = squash
         count++
     }
 
@@ -43,13 +53,26 @@ internal class GlassShapes {
         if (count != o.count) return false
         for (i in 0 until count * 4) if (rects[i] != o.rects[i]) return false
         for (i in 0 until count) if (radii[i] != o.radii[i]) return false
+        for (i in 0 until count * 4) if (deform[i] != o.deform[i]) return false
         return true
     }
 
     fun copyFrom(o: GlassShapes) {
         o.rects.copyInto(rects)
         o.radii.copyInto(radii)
+        o.deform.copyInto(deform)
         count = o.count
+    }
+
+    private companion object {
+        fun identity(d: FloatArray) {
+            for (i in 0 until MAX_SHAPES) {
+                d[i * 4] = 1f
+                d[i * 4 + 1] = 0f
+                d[i * 4 + 2] = 1f
+                d[i * 4 + 3] = 1f
+            }
+        }
     }
 }
 
@@ -77,6 +100,8 @@ internal class GlassRenderer {
     private var effectMerge = -1f
     private var effectDs = 1
     private var effectTaps = false
+    private var effectMargin = 0
+    private val uploadRects = FloatArray(MAX_SHAPES * 4)
 
     private var recordedOffset = Offset.Unspecified
     private var recordedSize = IntSize.Zero
@@ -104,6 +129,7 @@ internal class GlassRenderer {
         style: GlassStyle,
         mode: GlassMode,
         merge: Dp,
+        margin: Dp = Dp(0f),
     ) {
         val layer = layer
         if (mode == GlassMode.Solid || layer == null || offset == Offset.Unspecified) {
@@ -113,7 +139,10 @@ internal class GlassRenderer {
         val tracing = Trace.isEnabled()
         if (tracing) Trace.beginSection("Vitreous#glass")
 
-        val intSize = IntSize(size.width.toInt(), size.height.toInt())
+        // The pass may extend past the element by [margin] so stretched shapes are not cut off.
+        val m = kotlin.math.ceil(margin.toPx()).toInt()
+        val mf = m.toFloat()
+        val intSize = IntSize(size.width.toInt() + 2 * m, size.height.toInt() + 2 * m)
         val blurPx = if (mode == GlassMode.NoBlur) 0f else style.blurRadius.toPx()
         val taps = blurPx >= 0.5f && VitreousDebug.blurMethod == 1
         val ds = when {
@@ -126,13 +155,20 @@ internal class GlassRenderer {
         val mergePx = merge.toPx()
         if (effect == null || intSize != effectSize || density != effectDensity ||
             style != effectStyle || mode != effectMode || ds != effectDs ||
-            mergePx != effectMerge || taps != effectTaps || !shapes.sameAs(effectShapes)
+            mergePx != effectMerge || taps != effectTaps || m != effectMargin || !shapes.sameAs(effectShapes)
         ) {
+            for (i in 0 until shapes.count) {
+                uploadRects[i * 4] = shapes.rects[i * 4] + mf
+                uploadRects[i * 4 + 1] = shapes.rects[i * 4 + 1] + mf
+                uploadRects[i * 4 + 2] = shapes.rects[i * 4 + 2]
+                uploadRects[i * 4 + 3] = shapes.rects[i * 4 + 3]
+            }
             val lens = GlassShader.effect(
                 width = intSize.width.toFloat(),
                 height = intSize.height.toFloat(),
-                rects = shapes.rects,
+                rects = uploadRects,
                 radii = shapes.radii,
+                deform = shapes.deform,
                 count = shapes.count,
                 mergePx = mergePx,
                 bandPx = style.refractionBand.toPx(),
@@ -166,6 +202,7 @@ internal class GlassRenderer {
             layer.renderEffect = effect
             if (ds != effectDs || taps != effectTaps) recordedSize = IntSize.Zero // layer structure changed
             effectTaps = taps
+            effectMargin = m
             effectShapes.copyFrom(shapes)
             effectSize = intSize
             effectDensity = density
@@ -175,14 +212,15 @@ internal class GlassRenderer {
             effectDs = ds
         }
 
-        if (offset != recordedOffset || intSize != recordedSize || source !== recordedSource) {
+        val origin = Offset(offset.x - mf, offset.y - mf)
+        if (origin != recordedOffset || intSize != recordedSize || source !== recordedSource) {
             val bl = blurLayer
             if (ds > 1 && bl != null) {
                 val small = IntSize((intSize.width + ds - 1) / ds, (intSize.height + ds - 1) / ds)
                 val inv = 1f / ds
                 bl.record(small) {
                     scale(inv, inv, pivot = Offset.Zero) {
-                        translate(-offset.x, -offset.y) { drawLayer(source) }
+                        translate(-origin.x, -origin.y) { drawLayer(source) }
                     }
                 }
                 layer.record(intSize) {
@@ -190,15 +228,15 @@ internal class GlassRenderer {
                 }
             } else {
                 layer.record(intSize) {
-                    translate(-offset.x, -offset.y) { drawLayer(source) }
+                    translate(-origin.x, -origin.y) { drawLayer(source) }
                 }
             }
-            recordedOffset = offset
+            recordedOffset = origin
             recordedSize = intSize
             recordedSource = source
             VitreousDebug.glassRecords++
         }
-        drawLayer(layer)
+        if (m == 0) drawLayer(layer) else translate(-mf, -mf) { drawLayer(layer) }
         if (tracing) Trace.endSection()
     }
 

@@ -23,6 +23,7 @@ uniform float2 uSize;
 uniform float uCount;
 uniform float uRects[${MAX_SHAPES * 4}];
 uniform float uRadii[$MAX_SHAPES];
+uniform float uDeform[${MAX_SHAPES * 4}];
 uniform float uMerge;
 uniform float uBand;
 uniform float uDepth;
@@ -36,10 +37,14 @@ uniform float uBlur;
 
 // Distance to one rounded rectangle (negative inside) and its outward edge normal. The normal
 // comes from a rounder copy of the shape (radius at least the band) so its direction is smooth
-// wherever the refraction band reaches.
-float3 shape(float2 xy, float x, float y, float w, float hgt, float rad) {
+// wherever the refraction band reaches. (ux, uy, st, sq) stretch the shape by st along the unit
+// direction u and by sq across it, for the elastic pull.
+float3 shape(float2 xy, float x, float y, float w, float hgt, float rad, float ux, float uy, float st, float sq) {
     float2 h = float2(w, hgt) * 0.5;
     float2 p = xy - float2(x, y) - h;
+    float2 u = float2(ux, uy);
+    float2 v = float2(-uy, ux);
+    p = (dot(p, u) / st) * u + (dot(p, v) / sq) * v;
     float m = min(h.x, h.y);
     float r = min(rad, m);
     float2 q = abs(p) - (h - r);
@@ -48,7 +53,10 @@ float3 shape(float2 xy, float x, float y, float w, float hgt, float rad) {
     float2 qb = abs(p) - (h - rb);
     float2 nb = (qb.x > 0.0 && qb.y > 0.0) ? normalize(qb) : (qb.x > qb.y ? float2(1.0, 0.0) : float2(0.0, 1.0));
     float2 sp = float2(p.x >= 0.0 ? 1.0 : -1.0, p.y >= 0.0 ? 1.0 : -1.0);
-    return float3(d, nb * sp);
+    float2 n0 = nb * sp;
+    float2 n = (dot(n0, u) / st) * u + (dot(n0, v) / sq) * v;
+    n = n / max(length(n), 0.0001);
+    return float3(d * min(st, sq), n);
 }
 
 float2 clampIn(float2 s) {
@@ -79,7 +87,8 @@ half4 main(float2 xy) {
     float2 n = float2(0.0, -1.0);
     for (int i = 0; i < $MAX_SHAPES; i++) {
         if (float(i) < uCount) {
-            float3 s = shape(xy, uRects[i * 4], uRects[i * 4 + 1], uRects[i * 4 + 2], uRects[i * 4 + 3], uRadii[i]);
+            float3 s = shape(xy, uRects[i * 4], uRects[i * 4 + 1], uRects[i * 4 + 2], uRects[i * 4 + 3], uRadii[i],
+                uDeform[i * 4], uDeform[i * 4 + 1], uDeform[i * 4 + 2], uDeform[i * 4 + 3]);
             if (uMerge > 0.0) {
                 // Smooth union: shapes closer than uMerge flow into each other like liquid.
                 float k = clamp(0.5 + 0.5 * (d - s.x) / uMerge, 0.0, 1.0);
@@ -143,6 +152,7 @@ internal object GlassShader {
         height: Float,
         rects: FloatArray,
         radii: FloatArray,
+        deform: FloatArray,
         count: Int,
         mergePx: Float,
         bandPx: Float,
@@ -156,6 +166,7 @@ internal object GlassShader {
         s.setFloatUniform("uCount", count.toFloat())
         s.setFloatUniform("uRects", rects)
         s.setFloatUniform("uRadii", radii)
+        s.setFloatUniform("uDeform", deform)
         s.setFloatUniform("uMerge", mergePx)
         s.setFloatUniform("uBand", bandPx.coerceAtLeast(1f))
         s.setFloatUniform("uDepth", depthPx)

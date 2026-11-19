@@ -83,16 +83,19 @@ public fun Modifier.glassGroup(
 ): Modifier = this then GlassGroupElement(backdrop, group, style, mode, merge)
 
 /**
- * Marks this element as one glass piece of [group] (which must be on an ancestor).
+ * Marks this element as one glass piece of [group] (on this element or an ancestor).
  *
- * @param inflate optional scale of the piece read at draw time, for press feedback; animating it
- *   only rebuilds the group's shader uniforms, never the content.
+ * @param pull makes the piece elastic: it swells when pressed and stretches toward the finger
+ *   (pair it with [glassPullGesture]). Animating it only changes the group's shader numbers;
+ *   nothing is recomposed or re-recorded.
+ * @param maxPull how far the piece can stretch.
  */
 public fun Modifier.glassPart(
     group: GlassGroupState,
     shape: GlassShape = GlassShape.rounded(24.dp),
-    inflate: (() -> Float)? = null,
-): Modifier = this then GlassPartElement(group, shape, inflate)
+    pull: GlassPullState? = null,
+    maxPull: Dp = DefaultMaxPull,
+): Modifier = this then GlassPartElement(group, shape, pull, maxPull)
 
 private class GlassGroupElement(
     val backdrop: GlassBackdrop,
@@ -139,6 +142,7 @@ internal class GlassGroupNode(
     override val shouldAutoInvalidate: Boolean get() = false
 
     private val renderer = GlassRenderer()
+    private val elastic = Elastic()
     private var offset = Offset.Unspecified
 
     fun update(backdrop: GlassBackdrop, group: GlassGroupState, style: GlassStyle, mode: GlassMode, merge: Dp) {
@@ -192,20 +196,34 @@ internal class GlassGroupNode(
         }
         val shapes = renderer.shapes
         shapes.clear()
+        var margin = 0.dp
         for (part in group.parts) {
             if (!part.isAttached) continue
             val c = part.requireLayoutCoordinates()
             if (!c.isAttached) continue
             val r = me.localBoundingBoxOf(c, clipBounds = false)
-            val k = part.inflate?.invoke() ?: 1f
+            val pull = part.pull
+            if (pull == null) {
+                shapes.add(r.left, r.top, r.width, r.height, part.shape.radiusPx(this, r.width, r.height))
+                continue
+            }
+            // Reading the pull state here makes this draw (only) follow its animation.
+            val k = pull.scale
             val w = r.width * k
             val h = r.height * k
-            val x = r.left - (w - r.width) / 2f
-            val y = r.top - (h - r.height) / 2f
-            shapes.add(x, y, w, h, part.shape.radiusPx(this, w, h))
+            elastic.compute(pull.offset, w, h, part.maxPull.toPx())
+            val x = r.left - (w - r.width) / 2f + elastic.shiftX
+            val y = r.top - (h - r.height) / 2f + elastic.shiftY
+            shapes.add(
+                x, y, w, h, part.shape.radiusPx(this, w, h),
+                elastic.ux, elastic.uy, elastic.stretch, elastic.squash,
+            )
+            if (part.maxPull > margin) margin = part.maxPull
         }
         if (shapes.count > 0) {
-            with(renderer) { drawGlass(requireGraphicsContext(), backdrop.layer, offset, style, mode, merge) }
+            with(renderer) {
+                drawGlass(requireGraphicsContext(), backdrop.layer, offset, style, mode, merge, margin * 1.25f)
+            }
         }
         drawContent()
     }
@@ -214,12 +232,13 @@ internal class GlassGroupNode(
 private class GlassPartElement(
     val group: GlassGroupState,
     val shape: GlassShape,
-    val inflate: (() -> Float)?,
+    val pull: GlassPullState?,
+    val maxPull: Dp,
 ) : ModifierNodeElement<GlassPartNode>() {
-    override fun create() = GlassPartNode(group, shape, inflate)
+    override fun create() = GlassPartNode(group, shape, pull, maxPull)
 
     override fun update(node: GlassPartNode) {
-        val changed = node.group !== group || node.shape != shape || node.inflate !== inflate
+        val changed = node.group !== group || node.shape != shape || node.pull !== pull || node.maxPull != maxPull
         if (node.group !== group) {
             node.group.parts.remove(node)
             node.group.invalidate()
@@ -227,7 +246,8 @@ private class GlassPartElement(
         }
         node.group = group
         node.shape = shape
-        node.inflate = inflate
+        node.pull = pull
+        node.maxPull = maxPull
         if (changed) group.invalidate()
     }
 
@@ -237,12 +257,14 @@ private class GlassPartElement(
     }
 
     override fun equals(other: Any?): Boolean =
-        other is GlassPartElement && other.group === group && other.shape == shape && other.inflate === inflate
+        other is GlassPartElement && other.group === group && other.shape == shape &&
+            other.pull === pull && other.maxPull == maxPull
 
     override fun hashCode(): Int {
         var h = System.identityHashCode(group)
         h = 31 * h + shape.hashCode()
-        h = 31 * h + (inflate?.hashCode() ?: 0)
+        h = 31 * h + System.identityHashCode(pull)
+        h = 31 * h + maxPull.hashCode()
         return h
     }
 }
@@ -250,7 +272,8 @@ private class GlassPartElement(
 internal class GlassPartNode(
     var group: GlassGroupState,
     var shape: GlassShape,
-    var inflate: (() -> Float)?,
+    var pull: GlassPullState?,
+    var maxPull: Dp,
 ) : Modifier.Node(), GlobalPositionAwareModifierNode {
     private var lastX = Float.NaN
     private var lastY = Float.NaN
