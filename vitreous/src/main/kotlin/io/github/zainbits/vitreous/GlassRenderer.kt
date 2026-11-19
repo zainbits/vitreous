@@ -138,6 +138,23 @@ internal class GlassRenderer {
         }
         val tracing = Trace.isEnabled()
         if (tracing) Trace.beginSection("Vitreous#glass")
+        try {
+            drawGlassPass(context, source, offset, style, mode, merge, margin, layer)
+        } finally {
+            if (tracing) Trace.endSection()
+        }
+    }
+
+    private fun DrawScope.drawGlassPass(
+        context: GraphicsContext,
+        source: GraphicsLayer,
+        offset: Offset,
+        style: GlassStyle,
+        mode: GlassMode,
+        merge: Dp,
+        margin: Dp,
+        layer: GraphicsLayer,
+    ) {
 
         // The pass may extend past the element by [margin] so stretched shapes are not cut off.
         val m = kotlin.math.ceil(margin.toPx()).toInt()
@@ -237,7 +254,6 @@ internal class GlassRenderer {
             VitreousDebug.glassRecords++
         }
         if (m == 0) drawLayer(layer) else translate(-mf, -mf) { drawLayer(layer) }
-        if (tracing) Trace.endSection()
     }
 
     private fun DrawScope.drawSolid(style: GlassStyle) {

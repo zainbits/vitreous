@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.zainbits.vitreous.sample"
-        minSdk = 36
+        minSdk = 33
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"

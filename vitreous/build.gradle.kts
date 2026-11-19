@@ -8,8 +8,9 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // Android 16+ only: one code path, no fallbacks for old graphics stacks.
-        minSdk = 36
+        // Android 13+: RuntimeShader (AGSL) and RenderEffect are the only platform APIs that
+        // matter, and both exist from 33, so there are no version checks in the library.
+        minSdk = 33
         consumerProguardFiles("consumer-rules.pro")
     }
 
