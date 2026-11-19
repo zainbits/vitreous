@@ -26,6 +26,9 @@ import io.github.zainbits.cohesion.glassPullContent
 import io.github.zainbits.cohesion.glassPullGesture
 import io.github.zainbits.cohesion.rememberGlassPullState
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ProvidableCompositionLocal
+import androidx.compose.runtime.compositionLocalOf
+import io.github.zainbits.cohesion.GlassPullState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -105,7 +108,7 @@ public fun GlassSurface(
             contentAlignment = contentAlignment,
         ) {
             // Glass nested inside this surface is drawn on top of it, not merged into the group.
-            CompositionLocalProvider(LocalGlassGroup provides null) {
+            CompositionLocalProvider(LocalGlassGroup provides null, LocalGlassPull provides pull) {
                 if (tone != null) AdaptiveContent(tone) { content() } else content()
             }
         }
@@ -218,6 +221,13 @@ public fun GlassTopBar(
     }
     }
 }
+
+/**
+ * The pull state of the elastic [GlassSurface] around this content (null when it is not elastic). Mark a
+ * control inside it with `Modifier.glassPullExempt(LocalGlassPull.current)` so touching the control does
+ * not bounce the glass.
+ */
+public val LocalGlassPull: ProvidableCompositionLocal<GlassPullState?> = compositionLocalOf { null }
 
 /** Provides the tone's colour as [LocalContentColor], fading between light and dark like iOS. */
 @Composable
