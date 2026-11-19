@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
  * A glass panel with content on top. Look and mode come from [LocalGlassStyle]/[LocalGlassMode].
  * Inside a [GlassGroup] it becomes one of the group's pieces instead of a pass of its own.
  *
+ * @param backdrop the content the glass shows; null draws a flat panel in [GlassStyle.solidColor] that still
+ *   stretches (with [elastic]) and merges inside a group, with no offscreen pass.
  * @param elastic the finger can pull the panel like liquid (it springs back on release).
  * @param onClick makes the panel a button; with [elastic], a press released over it is a click.
  * @param adaptiveContent the content's colour ([LocalContentColor]) follows what is behind the glass:
@@ -51,7 +53,7 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 public fun GlassSurface(
-    backdrop: GlassBackdrop,
+    backdrop: GlassBackdrop?,
     modifier: Modifier = Modifier,
     shape: GlassShape = GlassShape.rounded(24.dp),
     style: GlassStyle = LocalGlassStyle.current,
@@ -68,8 +70,8 @@ public fun GlassSurface(
     val tone = if (adaptiveContent) rememberGlassContentTone(style) else null
     val glass = when {
         outer != null -> Modifier.glassPart(outer, shape, pull, tone)
-        // An elastic or adaptive piece uses a one-piece group (room to stretch, the tone sampler); same cost.
-        pull != null || tone != null -> {
+        // An elastic, adaptive or flat piece uses a one-piece group (room to stretch, the tone sampler); same cost.
+        pull != null || tone != null || backdrop == null -> {
             val own = rememberGlassGroup()
             Modifier.glassGroup(backdrop, own, style, mode).glassPart(own, shape, pull, tone)
         }
@@ -118,12 +120,13 @@ public fun GlassSurface(
 /**
  * A round glass button (a back button, an action). It is elastic: a press swells it, a drag
  * stretches it toward the finger like liquid, and it wobbles back on release. A press released
- * over the button is a click. With [adaptiveContent] the icon turns dark over bright content.
+ * over the button is a click. With [adaptiveContent] the icon turns dark over bright content. With no
+ * [backdrop] it is a flat button in [GlassStyle.solidColor] that still stretches.
  */
 @Composable
 public fun GlassIconButton(
     onClick: () -> Unit,
-    backdrop: GlassBackdrop,
+    backdrop: GlassBackdrop?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
@@ -168,7 +171,7 @@ public fun GlassIconButton(
  */
 @Composable
 public fun GlassTopBar(
-    backdrop: GlassBackdrop,
+    backdrop: GlassBackdrop?,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     backIcon: @Composable () -> Unit = {},

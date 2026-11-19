@@ -77,11 +77,14 @@ public val LocalGlassGroup: ProvidableCompositionLocal<GlassGroupState?> = compo
  * A container whose glass pieces draw in one pass. [GlassSurface]s and [GlassIconButton]s
  * anywhere inside [content] join it automatically.
  *
+ * @param backdrop the content the glass shows; null draws the pieces flat in the style's
+ *   [GlassStyle.solidColor] with no offscreen pass (merging and stretch still work), for liquid
+ *   pieces over plain backgrounds such as cards in a list.
  * @param merge pieces closer than this flow into each other; 0 keeps them separate.
  */
 @Composable
 public fun GlassGroup(
-    backdrop: GlassBackdrop,
+    backdrop: GlassBackdrop?,
     modifier: Modifier = Modifier,
     style: GlassStyle = LocalGlassStyle.current,
     mode: GlassMode = LocalGlassMode.current,
@@ -94,9 +97,12 @@ public fun GlassGroup(
     }
 }
 
-/** Draws the glass of every [glassPart] of [group] in one pass behind this element's content. */
+/**
+ * Draws the glass of every [glassPart] of [group] in one pass behind this element's content.
+ * With no [backdrop] the pieces are drawn flat in [GlassStyle.solidColor], still merging and stretching.
+ */
 public fun Modifier.glassGroup(
-    backdrop: GlassBackdrop,
+    backdrop: GlassBackdrop?,
     group: GlassGroupState,
     style: GlassStyle = GlassStyle.Light,
     mode: GlassMode = GlassMode.Full,
@@ -119,7 +125,7 @@ public fun Modifier.glassPart(
 ): Modifier = this then GlassPartElement(group, shape, pull, pull?.spec?.maxPull ?: DefaultMaxPull, tone)
 
 private class GlassGroupElement(
-    val backdrop: GlassBackdrop,
+    val backdrop: GlassBackdrop?,
     val group: GlassGroupState,
     val style: GlassStyle,
     val mode: GlassMode,
@@ -153,7 +159,7 @@ private class GlassGroupElement(
 }
 
 internal class GlassGroupNode(
-    var backdrop: GlassBackdrop,
+    var backdrop: GlassBackdrop?,
     var group: GlassGroupState,
     var style: GlassStyle,
     var mode: GlassMode,
@@ -177,7 +183,7 @@ internal class GlassGroupNode(
     private val toneMoved = MutableStateFlow(0L)
     private var probe: GlassToneProbe? = null
 
-    fun update(backdrop: GlassBackdrop, group: GlassGroupState, style: GlassStyle, mode: GlassMode, merge: Dp) {
+    fun update(backdrop: GlassBackdrop?, group: GlassGroupState, style: GlassStyle, mode: GlassMode, merge: Dp) {
         val changed = this.backdrop !== backdrop || this.group !== group ||
             this.style != style || this.mode != mode || this.merge != merge
         val newBackdrop = this.backdrop !== backdrop
@@ -196,7 +202,16 @@ internal class GlassGroupNode(
         else if (changed) toneMoved.value++
     }
 
+    /** Flat pieces (no backdrop): nothing to read, the content colour follows the solid colour. */
+    private val flat: Boolean get() = backdrop == null || mode == GlassMode.Solid
+
     private fun startSampler() {
+        val backdrop = backdrop
+        if (backdrop == null) {
+            probe?.stop()
+            probe = null
+            return
+        }
         val p = probe ?: GlassToneProbe(coroutineScope) { sampleTones() }.also { probe = it }
         p.watch(backdrop, toneMoved)
     }
@@ -205,7 +220,7 @@ internal class GlassGroupNode(
     private fun sampleTones() {
         val n = toneCount
         if (!isAttached || n == 0) return
-        if (mode == GlassMode.Solid) {
+        if (flat) {
             val l = style.solidColor.luminance()
             for (k in 0 until n) tones[k]?.let { it.isDark = GlassTone.wantsDarkContent(l, it.isDark) }
             return
@@ -258,7 +273,7 @@ internal class GlassGroupNode(
     }
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
-        val o = backdrop.positionOf(coordinates) ?: return
+        val o = backdrop?.positionOf(coordinates) ?: return
         if (o != offset) {
             offset = o
             invalidateDraw()
@@ -278,13 +293,16 @@ internal class GlassGroupNode(
         }
         toneCount = count
         toneBounds = bounds
-        if (moved && count > 0) toneMoved.value++
+        if (moved && count > 0) {
+            if (backdrop == null) sampleTones() else toneMoved.value++
+        }
     }
 
     override fun ContentDrawScope.draw() {
         val me = requireLayoutCoordinates()
+        val backdrop = backdrop
         if (offset == Offset.Unspecified) {
-            backdrop.positionOf(me)?.let { offset = it }
+            backdrop?.positionOf(me)?.let { offset = it }
         }
         val shapes = scene
         shapes.clear(style.refractionBand.toPx(), merge.toPx())
@@ -328,7 +346,10 @@ internal class GlassGroupNode(
         shapes.commit()
         noteTones(toned)
         if (shapes.size > 0) {
-            with(pass) { draw(requireGraphicsContext(), backdrop, offset, style, mode, margin * 1.25f) }
+            with(pass) {
+                if (backdrop == null) drawSolid(style, margin * 1.25f)
+                else draw(requireGraphicsContext(), backdrop, offset, style, mode, margin * 1.25f)
+            }
         }
         drawContent()
     }

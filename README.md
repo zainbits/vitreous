@@ -19,6 +19,8 @@ ProvideGlass(clarity = 0.35f, dark = isSystemInDarkTheme()) {   // 0 = ultra-cle
 
 Text and icons on glass adapt: `GlassSurface` and `GlassIconButton` set `LocalContentColor` dark over bright content and light over dark (`LocalGlassContentColors`), fading between them like iOS. Turn it off with `adaptiveContent = false`.
 
+No glass behind it? `GlassGroup(backdrop = null, style = GlassStyle(solidColor = ...))` draws the pieces as flat shapes that still merge like liquid and stretch under the finger, with no offscreen pass: for cards in a list, swipe actions and the like.
+
 How it stays cheap:
 - The content is recorded once per frame; glass replays that recording, and when the content scrolls the render thread refreshes the glass with no UI-thread work.
 - Pieces in a `GlassGroup` (and everything in `GlassTopBar`) share one offscreen pass. The cost is per render pass, not per pixel.
