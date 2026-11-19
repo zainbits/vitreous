@@ -82,6 +82,9 @@ public class GlassPullState internal constructor(internal val scope: CoroutineSc
     /** Finger drag in pixels (raw). Read it only in draw or layer blocks. */
     public val offset: Offset get() = pull.value
 
+    /** Whether the glass piece is a circle; set by its group, read by [glassPullContent]. */
+    internal var round: Boolean = true
+
     /** Press swell (1 = rest). Read it only in draw or layer blocks. */
     public val scale: Float get() = press.value
 
@@ -171,20 +174,42 @@ internal class Elastic {
     var stretch = 1f
     var squash = 1f
 
-    fun compute(pull: Offset, w: Float, h: Float, maxPx: Float, stretchFactor: Float) {
+    /**
+     * @param round a circle stretches along the drag in any direction; every other shape (a
+     *   capsule, a rounded panel) stretches only along its own x and y axes, like on iOS.
+     */
+    fun compute(pull: Offset, w: Float, h: Float, maxPx: Float, stretchFactor: Float, round: Boolean) {
         val len = pull.getDistance()
         if (len < 0.01f || maxPx <= 0f) {
             shiftX = 0f; shiftY = 0f; ux = 1f; uy = 0f; stretch = 1f; squash = 1f
             return
         }
-        ux = pull.x / len
-        uy = pull.y / len
+        val dx = pull.x / len
+        val dy = pull.y / len
         val e = maxPx * (1f - exp(-len / maxPx))
-        val along = abs(ux) * w + abs(uy) * h
-        stretch = 1f + stretchFactor * e / along.coerceAtLeast(1f)
-        squash = 1f / sqrt(stretch)
-        shiftX = ux * e * 0.5f
-        shiftY = uy * e * 0.5f
+        shiftX = dx * e * 0.5f
+        shiftY = dy * e * 0.5f
+        if (round) {
+            ux = dx
+            uy = dy
+            stretch = 1f + stretchFactor * e / (abs(dx) * w + abs(dy) * h).coerceAtLeast(1f)
+            squash = 1f / sqrt(stretch)
+        } else {
+            // Axis-aligned: lengthen along x by the drag's x part and along y by its y part,
+            // each thinning the other axis a little so the piece keeps roughly its area.
+            val sx = 1f + stretchFactor * abs(dx) * e / w.coerceAtLeast(1f)
+            val sy = 1f + stretchFactor * abs(dy) * e / h.coerceAtLeast(1f)
+            ux = 1f
+            uy = 0f
+            stretch = sx / sqrt(sy)
+            squash = sy / sqrt(sx)
+        }
+    }
+
+    companion object {
+        /** A circle (or close enough): square, with corners at least half its side. */
+        fun isRound(w: Float, h: Float, radius: Float): Boolean =
+            abs(w - h) < 0.5f && radius >= minOf(w, h) / 2f - 0.5f
     }
 }
 
@@ -197,7 +222,9 @@ public fun Modifier.glassPullContent(state: GlassPullState): Modifier {
     val elastic = Elastic()
     return this.graphicsLayer {
         val k = state.scale
-        elastic.compute(state.offset, size.width * k, size.height * k, state.spec.maxPull.toPx(), state.spec.stretch)
+        val w = size.width * k
+        val h = size.height * k
+        elastic.compute(state.offset, w, h, state.spec.maxPull.toPx(), state.spec.stretch, round = state.round)
         // The glass stretches along the drag; a layer only scales along x and y, so project it.
         val ux2 = elastic.ux * elastic.ux
         val uy2 = elastic.uy * elastic.uy

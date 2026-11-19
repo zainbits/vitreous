@@ -209,11 +209,14 @@ internal class GlassGroupNode(
             val k = pull.scale
             val w = r.width * k
             val h = r.height * k
-            elastic.compute(pull.offset, w, h, pull.spec.maxPull.toPx(), pull.spec.stretch)
+            val radius = part.shape.radiusPx(this, w, h)
+            val round = Elastic.isRound(w, h, radius)
+            pull.round = round
+            elastic.compute(pull.offset, w, h, pull.spec.maxPull.toPx(), pull.spec.stretch, round)
             val x = r.left - (w - r.width) / 2f + elastic.shiftX
             val y = r.top - (h - r.height) / 2f + elastic.shiftY
             shapes.add(
-                x, y, w, h, part.shape.radiusPx(this, w, h),
+                x, y, w, h, radius,
                 elastic.ux, elastic.uy, elastic.stretch, elastic.squash,
             )
             if (pull.spec.maxPull > margin) margin = pull.spec.maxPull
