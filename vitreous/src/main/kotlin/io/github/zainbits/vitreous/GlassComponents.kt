@@ -14,11 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import io.github.zainbits.cohesion.GlassBackdrop
 import io.github.zainbits.cohesion.GlassMode
 import io.github.zainbits.cohesion.GlassStyle
@@ -52,8 +48,6 @@ import androidx.compose.ui.unit.dp
  *   stretches (with [elastic]) and merges inside a group, with no offscreen pass.
  * @param elastic the finger can pull the panel like liquid (it springs back on release).
  * @param onClick makes the panel a button; with [elastic], a press released over it is a click.
- * @param adaptiveContent the content's colour ([LocalContentColor]) follows what is behind the glass:
- *   dark over bright content, light over dark ([LocalGlassContentColors]), like iOS.
  * @param onLongClick a press held still (a menu); with [elastic] the glass springs back and it is not a click.
  * @param scrollAxis the panel sits in a list scrolling along this axis (a tab strip): with [elastic], a drag
  *   along it scrolls the list instead of stretching the glass.
@@ -71,7 +65,6 @@ public fun GlassSurface(
     elastic: Boolean = false,
     onClick: (() -> Unit)? = null,
     enabled: Boolean = true,
-    adaptiveContent: Boolean = true,
     onLongClick: (() -> Unit)? = null,
     scrollAxis: Orientation? = null,
     clipContent: Boolean = true,
@@ -79,13 +72,12 @@ public fun GlassSurface(
 ) {
     val outer = LocalGlassGroup.current
     val pull = if (elastic) rememberGlassPullState() else null
-    val tone = if (adaptiveContent) rememberGlassContentTone(style) else null
     val glass = when {
-        outer != null -> Modifier.glassPart(outer, shape, pull, tone)
-        // An elastic, adaptive or flat piece uses a one-piece group (room to stretch, the tone sampler); same cost.
-        pull != null || tone != null || backdrop == null -> {
+        outer != null -> Modifier.glassPart(outer, shape, pull)
+        // An elastic or flat piece uses a one-piece group (room to stretch); same cost.
+        pull != null || backdrop == null -> {
             val own = rememberGlassGroup()
-            Modifier.glassGroup(backdrop, own, style, mode).glassPart(own, shape, pull, tone)
+            Modifier.glassGroup(backdrop, own, style, mode).glassPart(own, shape, pull)
         }
         else -> Modifier.glass(backdrop, shape, style, mode)
     }
@@ -133,7 +125,7 @@ public fun GlassSurface(
         ) {
             // Glass nested inside this surface is drawn on top of it, not merged into the group.
             CompositionLocalProvider(LocalGlassGroup provides null, LocalGlassPull provides pull) {
-                if (tone != null) AdaptiveContent(tone) { content() } else content()
+                content()
             }
         }
     }
@@ -142,8 +134,7 @@ public fun GlassSurface(
 /**
  * A round glass button (a back button, an action). It is elastic: a press swells it, a drag
  * stretches it toward the finger like liquid, and it wobbles back on release. A press released
- * over the button is a click. With [adaptiveContent] the icon turns dark over bright content. With no
- * [backdrop] it is a flat button in [GlassStyle.solidColor] that still stretches.
+ * over the button is a click. With no [backdrop] it is a flat button in [GlassStyle.solidColor] that still stretches.
  */
 @Composable
 public fun GlassIconButton(
@@ -155,19 +146,17 @@ public fun GlassIconButton(
     enabled: Boolean = true,
     style: GlassStyle = LocalGlassStyle.current,
     mode: GlassMode = LocalGlassMode.current,
-    adaptiveContent: Boolean = true,
     icon: @Composable () -> Unit,
 ) {
     val pull = rememberGlassPullState()
     val outer = LocalGlassGroup.current
     val own = rememberGlassGroup()
     val group = outer ?: own
-    val tone = if (adaptiveContent) rememberGlassContentTone(style) else null
     Box(
         modifier = modifier
             .size(size)
             .then(if (outer == null) Modifier.glassGroup(backdrop, own, style, mode) else Modifier)
-            .glassPart(group, GlassShape.Capsule, pull, tone)
+            .glassPart(group, GlassShape.Capsule, pull)
             .glassPullGesture(pull, enabled, onTap = onClick)
             .semantics {
                 role = Role.Button
@@ -180,7 +169,7 @@ public fun GlassIconButton(
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.matchParentSize().glassPullContent(pull), contentAlignment = Alignment.Center) {
-            if (tone != null) AdaptiveContent(tone, icon) else icon()
+            icon()
         }
     }
 }
@@ -253,15 +242,3 @@ public fun GlassTopBar(
  * not bounce the glass.
  */
 public val LocalGlassPull: ProvidableCompositionLocal<GlassPullState?> = compositionLocalOf { null }
-
-/** Provides the tone's colour as [LocalContentColor], fading between light and dark like iOS. */
-@Composable
-private fun AdaptiveContent(tone: GlassContentTone, content: @Composable () -> Unit) {
-    val colors = LocalGlassContentColors.current
-    val color by animateColorAsState(
-        targetValue = if (tone.isDark) colors.dark else colors.light,
-        animationSpec = tween(durationMillis = 220),
-        label = "glassContent",
-    )
-    CompositionLocalProvider(LocalContentColor provides color, content = content)
-}

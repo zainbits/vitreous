@@ -17,7 +17,7 @@ ProvideGlass(clarity = 0.35f, dark = isSystemInDarkTheme()) {   // 0 = ultra-cle
 }
 ```
 
-Text and icons on glass adapt: `GlassSurface` and `GlassIconButton` set `LocalContentColor` dark over bright content and light over dark (`LocalGlassContentColors`), fading between them like iOS. Turn it off with `adaptiveContent = false`.
+Text and icons on glass keep the theme's `LocalContentColor`: the glass's own tint (whitish on a light theme, dark on a dark one) keeps them readable over any content, so nothing reads the screen behind the glass to swap colours.
 
 No glass behind it? `GlassGroup(backdrop = null, style = GlassStyle(solidColor = ...))` draws the pieces as flat shapes that still merge like liquid and stretch under the finger, with no offscreen pass: for cards in a list, swipe actions and the like.
 
